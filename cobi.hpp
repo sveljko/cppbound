@@ -43,6 +43,13 @@ struct cobi {
         return false;
     }
 
+    template <class U, U D1, U G1, U D2, U G2> constexpr friend bool operator==(cobi<U, D1,G1> x, cobi<U, D2,G2> y);
+    template <class U, U D1, U G1> constexpr bool operator!=(cobi<U, D1,G1> x) const { return !(*this == x); }
+    template <class U, U D1, U G1, U D2, U G2> constexpr friend bool operator<(cobi<U, D1,G1> x, cobi<U, D2,G2> y);
+    template <class U, U D1, U G1> constexpr bool operator<=(cobi<U, D1,G1> x) const { return (*this < x) || (*this == x); }
+    template <class U, U D1, U G1> constexpr bool operator>(cobi<U, D1,G1> x) const { return !(*this < x); }
+    template <class U, U D1, U G1> constexpr bool operator>=(cobi<U, D1,G1> x) const { return (*this > x) || (*this == x); }
+
     template <class U, U D1, U G1> friend cobi<U, -G1, -D1> operator-(cobi<U, D1,G1> x);
 
     template <class U, U D1, U G1, U D2, U G2>
@@ -77,6 +84,24 @@ using cobint = cobi<int, D, G>;
 
 template <int D, int G = D>
 constexpr auto cobic = cobi<int, D, G>{};
+
+
+template <class T, T  D1, T G1, T D2, T G2> constexpr bool operator==(cobi<T, D1,G1> x, cobi<T, D2,G2> y) {
+    if constexpr ((G1 < D2) || (D1 > G2)) {
+        return false;
+    }
+    return x.i == y.i;
+}
+
+template <class T, T D1, T G1, T D2, T G2> constexpr bool operator<(cobi<T, D1,G1> x, cobi<T, D1,G1> y) {
+    if constexpr (G1 < D2) {
+        return true;
+    }
+    else if constexpr (D1 > G2) {
+        return false;
+    }
+    return x.i < y.i;
+}
 
 
 template <class T, T D, T G> cobi<T, -G, -D> operator-(cobi<T, D,G> x) {

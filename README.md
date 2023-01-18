@@ -1,5 +1,7 @@
 # Compile time bound, and thus safe, types
 
+For description in Serbian, see: [Опис на српском](README.sr.md).
+
 This is a collection of types that are statically - at compile time - bound
 so that you can't accidentally misuse them and get undefined behavior. They are,
 thus safe. This is C++, you can still cast away all this safety or do other nasty
@@ -10,29 +12,31 @@ things, but, there's nothing like "what if my integer addition overflows" or
 There are:
 
 * Range bound integers. Like in Ada. Beside being statically bound (say, from 0 to 5),
-  they also cannot overflow.
+  they also cannot overflow (actually more like Spark/Ada).
 * Dimension bound arrays. Similar to `std::array<>`, but, indexing is checked
   to be in range at compile time (with range bound integers) and there are no
   potentially unsafe interfaces. Invalid iterators point to a "safety spot", so 
   if someone dereferences them on purpose, there's no undefined behavior. You'll 
   still get _incorrect_ behavior, but, it's safe, not _undefined_.
 
-This should provide, with the caveats mentioned above, the same level of safety as,
-say, Ada/Spark's "no runtime errors". It's actually higher safety than most other 
-languages, including "plain" Ada, that catch such errors at runtime.
+This should provide, with the caveats mentioned above, the same level
+of safety as, say, Ada/Spark's "no runtime errors". It's actually
+higher safety than most other languages, including various "safe"
+ones, such as "plain" Ada, that catch such errors at runtime.
 
-As the need arises, we may add other types, such as strings, vectors, hash tables and
-search trees.
+Other fundamental types such as strings, vectors, hash tables and
+search trees are not implemented at this time. They might be added in the future.
 
 ## Getting started
 
 Just copy the headers you need where you'd like them to be and include them.
 
-This is designed for C++17, but will probably work with few changes in C++14.
+This is designed for and tested with C++17. It should work with few changes in C++14, let us
+know if you need help with that.
 
 ## Usage
 
-Should be rather simple. Look at the examples. Read the docs if you need more
+Should be rather simple. Look at the [examples](bound.t.cpp). Read the docs if you need more
 info.
 
 ## Basic design decisions
@@ -44,12 +48,16 @@ same as the code you would get if you wrote "optimal safe code", that is code
 with the least needed amount of checks.
 
 We use the C++ constant expression machinery which implies that there can be
-no undefined behavior in constant expressions, to prevent integer overflow and
+no undefined behavior in constant expressions, as to prevent integer overflow and
 similar nasty things.
 
 Also, we're aiming for smallest amount of code, both for simplicity, ease of
 maintenance and for higher assurance of correctness, as this is rather fundamental
 code - if you do rely it for safety, it'd better be right.
+
+For example, there's [bounded-integer](https://github.com/davidstone/bounded-integer),
+which is a 900 pound gorrila with just about anything you could think of. But, it's a
+lot of code and one probably needs only a portion thereof in most cases. 
 
 Each type is in a header of it's own, though it might include other headers,
 as needed. While being "header-only" is not a goal, so far all the types are
@@ -59,14 +67,14 @@ and constant expressions (`constexpr` and the like).
 
 ## Range bound integers
 
-Say you're writing software for a computer that has 10 USB ports and you're
+Say you're writing software for a computer that has 6 USB ports and you're
 somehow controlling these ports. Other examples are data about minutes, hours
 and seconds (leap seconds notwithstanding) of a clock, apartments in a building,
 age of high-school children, etc.
 
 Back to our USB ports, if you want to index one of them, you can define:
 
-    using usbi = cobi<int, 0, 9>;
+    using usbi = cobi<int, 0, 5>;
 
 Now, whenever you use `usbi`, you will be sure, at compile time, that it's value
 is within this range. The only way to get a value "inside" `usbi` is to call it's
@@ -83,23 +91,23 @@ the computation for you.
 This is OK:
 
     cobi<int, 0, 2> x{};
-    cobi<int, 2, 4> y{};
+    cobi<int, 2, 3> y{};
     usbi = x + y;
 
 but this is not:
 
-    cobi<int, 0, 2> x{};
+    cobi<int, 0, 1> x{};
     usbi y{};
-    usbi = x + y; // final range is 0,11, upper bound higher than usbi's 9
+    usbi = x + y; //!! final range is 0,6, upper bound higher than usbi's 5
 
 and this is just asking for it;
 
     usbi x{};
     usbi y{};
-    usbi = x + y; // final range is 0,18!
+    usbi = x + y; //!! final range is 0,10!
 
-This is a little strange at first, but, think about it, if `x == 9` _and_
-`y == 9`, then `x + y == 18`, which is clearly larger than `9`, and we can't
+This is a little strange at first, but, think about it, if `x == 5` _and_
+`y == 5`, then `x + y == 10`, which is clearly larger than `5`, and we can't
 have that.
 
 We're used to just adding integers, but, as we know, that can overflow, it's just
@@ -114,8 +122,8 @@ overflow for `z`, but:
 
     auto w = z + x;
 
-There's the overflow. Even though we're using `auto` and thus "accpeting" whatever
-range of `z + x` might be, since `z + x` overflows that would be undefined behavior,
+There it is! Even though we're using `auto` and thus "accepting" whatever
+range of `z + x` might be, since `z + x` overflows, that would be undefined behavior,
 and we can't have that.
 
 ### Compiler error messages
@@ -140,7 +148,7 @@ In general it's like this:
 ### Nicer error messages for MSVC - by error
 
 Microsoft Visual C++ compiler, at the time of this writing in January 2023,
-does not actually catch all overflows at compile time (in constant) expressions.
+does not actually catch all overflows at compile time in constant expressions.
 So, you'll find a few places in the code that have `#ifdef _MSC_VER` and do the
 overflow checks. If MSVC becomes more standards-compliant in the future, this
 can safely be deleted.
@@ -150,16 +158,17 @@ the usual MSVC messages.
 
 ### Nicer error messages - if only
 
-If you're not happy with the compiler error messages for overflow, you might be
-tempted to somehow circumvent that. For some, you can turn these checks off.
-Or, you might use some compiler other than the ones we did, and it might not
-have these checks.
+If you're not happy with the compiler error messages for overflow, you
+might be tempted to somehow circumvent that. For some, you can turn
+these checks off in GCC with `-fpermissive`.  Or, you might use some
+compiler other than the ones we did, and it might not have these
+checks.
 
 In such cases, following remarks might come in handy.
 For some odd reason, they all pertain to the minus operators.
 
-In the body of the operator unary minus, the following code make for nicer error
-messagees in catching the inability to get the oposite of the minumum possible
+In the body of the operator unary minus, the following code would make for nicer error
+messages in catching the inability to get the oposite of the minumum possible
 negative value. Of course, this assumes executing on a computer that uses 
 two's complement integers - which is essentially all computers in 2023.
 
@@ -219,12 +228,14 @@ So, you could (`LOWER < 0` and  `UPPER > 0`):
 There are other ways, that is you can simplify this to some extent depending on your context, 
 but, it's really tedious in any case. You will try to avoid mixed-sign bounds for the divisor.
 
-If you're compiling for:
-1. a processor that gives the result of `0` for division by zero
-2. you're compiler knows this and doesn't treat division by zero as anything special
-3. you don't care about portability
-then you can just remove the "possible division by zero" check in the code and be happy (also,
-wonder why don't all processors do this?).
+If you're compiling:
+1. for a processor that gives the result of `0` for division by zero
+2. with a compiler that knows this and doesn't treat division by zero as anything special
+3. with no care of portability 
+
+then you can just remove the "possible division by zero" check in the
+`cobi` code and be happy (also, wonder why don't all processors do
+this?).
 
 ### There's no bitwise operators
 
@@ -246,6 +257,21 @@ Assuming that we had bitwise and operator, this illustrates the range of the res
 
 It's actually non-trivial to come up with the actual final range and we just never had 
 a need for this. If someone does find a need for this, it could be added.
+
+### Comparison might be done at compile time
+
+If you have two integers of distinct ranges:
+
+    cobi<int, -5, -1> x;
+	cobi<int, 0, 5> y;
+
+then comparing them might be done at compile time:
+
+    constexpr bool same = x == y;
+
+That is `same` is a compile time constant equaling `false`, which might come in handy in
+certain situations.
+
 
 ### Most integers are ints
 

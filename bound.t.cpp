@@ -6,7 +6,7 @@
 
 void ints()
 {
-    cobint<std::numeric_limits<int>::max() - 2> x;
+    constexpr cobint<std::numeric_limits<int>::max() - 2> x;
     auto y = x + cobic<2>;
     // auto w = y + cobic<2>;
 
@@ -14,7 +14,7 @@ void ints()
     auto yn = xn - cobic<2>;
     // auto w = yn - cobic<2>;
 
-    cobint<0, 5> z;
+    constexpr cobint<0, 5> z;
     auto z2 = z + cobic<3>;
     static_assert(z2.DD == 3);
     static_assert(z2.GG == 8);
@@ -28,6 +28,8 @@ void ints()
     // auto z0 = x / z3;
 
     // auto no = yn / cobic<-1>;
+
+    static_assert(x != z);
 }
 
 void arrays()
