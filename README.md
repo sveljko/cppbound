@@ -74,7 +74,9 @@ age of high-school children, etc.
 
 Back to our USB ports, if you want to index one of them, you can define:
 
+```cpp
     using usbi = cobi<int, 0, 5>;
+```
 
 Now, whenever you use `usbi`, you will be sure, at compile time, that it's value
 is within this range. The only way to get a value "inside" `usbi` is to call it's
@@ -90,21 +92,27 @@ the computation for you.
 
 This is OK:
 
+```cpp
     cobi<int, 0, 2> x{};
     cobi<int, 2, 3> y{};
     usbi = x + y;
+```
 
 but this is not:
 
+```cpp
     cobi<int, 0, 1> x{};
     usbi y{};
     usbi = x + y; //!! final range is 0,6, upper bound higher than usbi's 5
+```
 
 and this is just asking for it;
 
+```cpp
     usbi x{};
     usbi y{};
     usbi = x + y; //!! final range is 0,10!
+```
 
 This is a little strange at first, but, think about it, if `x == 5` _and_
 `y == 5`, then `x + y == 10`, which is clearly larger than `5`, and we can't
@@ -113,14 +121,18 @@ have that.
 We're used to just adding integers, but, as we know, that can overflow, it's just
 that we don't think much about it. With `cobi`, we still don't have to:
 
+```cpp
     cobi<int, std::numeric_limits<int>:max() - 1> x;
     cobi<int, 1> x;
     auto z = x + y;
+```
 
 For convenience, the upper bound is by default the same as the lower. So, there's no
 overflow for `z`, but:
 
+```cpp
     auto w = z + x;
+```
 
 There it is! Even though we're using `auto` and thus "accepting" whatever
 range of `z + x` might be, since `z + x` overflows, that would be undefined behavior,
@@ -172,12 +184,15 @@ messages in catching the inability to get the oposite of the minumum possible
 negative value. Of course, this assumes executing on a computer that uses 
 two's complement integers - which is essentially all computers in 2023.
 
+```cpp
     static_assert(D > std::numeric_limits<T>::lowest(), "Negation Overflow");
     static_assert(G > std::numeric_limits<T>::lowest(), "Negation Overflow");
+```
 
 In the body of the binary minus, we could implement it on its own, rather than
 delegating to operator plus. It would go like this:
 
+```cpp
     if constexpr (D2 == std::numeric_limits<T>::lowest()) {
         static_assert(G1 > 0);
     }
@@ -200,6 +215,7 @@ delegating to operator plus. It would go like this:
     cobi<T, D1-G2, G1-D2> r;
     r.i = x.i - y.i;
     return r;
+```
 
 ### Division by zero
 
@@ -214,6 +230,7 @@ that's fine, but how do you do it, depends on your situation. See, division is i
 as the only other problem is if the divisior is `-1` and dividend is `std::numeric_limits<>::lowest()`.
 So, you could (`LOWER < 0` and  `UPPER > 0`):
 
+```cpp
     cobi<int, LOWER, UPPER> x;
     cobi<int, LOWER, UPPER> y;
     cobi<int, 1, UPPER> posdiv;
@@ -224,6 +241,7 @@ So, you could (`LOWER < 0` and  `UPPER > 0`):
     else if (negdiv.be(y.get())) {
         auto r = x / negdiv;
     }
+```
 
 There are other ways, that is you can simplify this to some extent depending on your context, 
 but, it's really tedious in any case. You will try to avoid mixed-sign bounds for the divisor.
@@ -244,16 +262,21 @@ We're modelling mathematic numbers here, there's no "bitwise operators" in mathe
 Besides, these are weird about the range of the result. Let's just look at one example - bitwise
 AND. Let's say operands are
 
+```cpp
     cobi<int,33> x;
     cobi<int,33> y;
     cobi<int,16> z;
     cobi<int,16,17> w;
+```
+	
 
 Assuming that we had bitwise and operator, this illustrates the range of the result:
 
+```cpp
     cobi<int, 33, 33> r  = x & y;
     cobi<int,  0,  0> r  = x & z;
     cobi<int,  0,  1> r  = x & w;
+```
 
 It's actually non-trivial to come up with the actual final range and we just never had 
 a need for this. If someone does find a need for this, it could be added.
@@ -262,12 +285,16 @@ a need for this. If someone does find a need for this, it could be added.
 
 If you have two integers of distinct ranges:
 
+```cpp
     cobi<int, -5, -1> x;
 	cobi<int, 0, 5> y;
+```
 
 then comparing them might be done at compile time:
 
+```cpp
     constexpr bool same = x == y;
+```
 
 That is `same` is a compile time constant equaling `false`, which might come in handy in
 certain situations.
@@ -281,15 +308,19 @@ For those, we provide a shortcut:
 
 is the same as
 
+```cpp
     cobi<int, 0,5>
+```
 
 This is needed because we can't have `int` be a default type and
 define a range (at best we could have the default range of `0,0` for the default `int` type). 
 For constants, there's `cobic`, which can save a few strokes  and look nicer in expressions:
 
+```cpp
     cobint<0,5> x;
     auto r = x + cobint<8>{};
     auto q = x + cobic<8>;
+```
 
 
 ## Range bound arrays
