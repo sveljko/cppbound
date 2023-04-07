@@ -53,7 +53,7 @@ similar nasty things.
 
 Also, we're aiming for smallest amount of code, both for simplicity, ease of
 maintenance and for higher assurance of correctness, as this is rather fundamental
-code - if you do rely it for safety, it'd better be right.
+code - if you do rely on it for safety, it'd better be right.
 
 For example, there's [bounded-integer](https://github.com/davidstone/bounded-integer),
 which is a 900 pound gorrila with just about anything you could think of. But, it's a
@@ -95,7 +95,7 @@ This is OK:
 ```cpp
     cobi<int, 0, 2> x{};
     cobi<int, 2, 3> y{};
-    usbi = x + y;
+    usbi z = x + y;
 ```
 
 but this is not:
@@ -103,7 +103,7 @@ but this is not:
 ```cpp
     cobi<int, 0, 1> x{};
     usbi y{};
-    usbi = x + y; //!! final range is 0,6, upper bound higher than usbi's 5
+    usbi z = x + y; //!! final range is 0,6, upper bound higher than usbi's 5
 ```
 
 and this is just asking for it;
@@ -111,7 +111,7 @@ and this is just asking for it;
 ```cpp
     usbi x{};
     usbi y{};
-    usbi = x + y; //!! final range is 0,10!
+    usbi z = x + y; //!! final range is 0,10!
 ```
 
 This is a little strange at first, but, think about it, if `x == 5` _and_
