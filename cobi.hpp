@@ -20,15 +20,13 @@ struct cobi {
 
     constexpr cobi() : i(D) {}
 
-    template <T PD, T PG> cobi(cobi<T, PD, PG> const& a) {
+    template <T PD, T PG> constexpr cobi(cobi<T, PD, PG> const& a) : i(a.get()) {
         static_assert(D <= PD, "Out of lower bounds");
         static_assert(G >= PG, "Out of upper bounds");
-        i = a.get();
     }
-    template <T PD, T PG> cobi(cobi<T, PD, PG>&& a) {
+    template <T PD, T PG> constexpr cobi(cobi<T, PD, PG>&& a) : i(a.get()) {
         static_assert(D <= PD, "Out of lower bounds");
         static_assert(G >= PG, "Out of upper bounds");
-        i = a.get();
     }
     template <T PD, T PG> void operator=(cobi<T, PD, PG> a) {
         static_assert(D <= PD, "Out of lower bounds");

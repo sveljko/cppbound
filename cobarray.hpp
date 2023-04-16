@@ -56,6 +56,11 @@ struct cobarray {
             p = x.p;
             return *this;
         }
+        I& operator=(I&& x) {
+            r = x.r;
+            p = x.p;
+            return *this;
+        }
         I& operator++() {
             if (p - r->d < N) {
                 ++p;
@@ -76,6 +81,9 @@ struct cobarray {
             }
             return { r, r->d + N };
         }
+        I operator+=(int x) {
+            return (*this) + x;
+        }
         I operator-(int x) const {
             if (p - x > r->d) {
                 if (p - x < r->d + N) {
@@ -89,7 +97,7 @@ struct cobarray {
         }
 
         reference operator*() { return *p; }
-        reference const operator*() const { return *p; }
+        reference operator*() const { return *p; }
         T* operator->() { return p; }
         T const* operator->() const { return p; }
 
