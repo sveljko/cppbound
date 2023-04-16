@@ -37,6 +37,9 @@ void arrays()
     cobarray<int, 3> a;
 
     // a.get(cobic<6>);
+    a.set(cobic<0>, 5);
+    a.set(cobic<1>, 1);
+    a.set(cobic<2>, 8);
     for (auto& x: a) {
         std::cout << x << " ";
     }
@@ -45,6 +48,7 @@ void arrays()
     for (auto& x: a) {
         std::cout << x << " ";
     }
+    std::cout << std::endl;
 }
 
 int main()

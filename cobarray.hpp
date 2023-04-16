@@ -73,7 +73,7 @@ struct cobarray {
             }
             return *this;
         }
-        I operator+(int x) const {
+        I operator+(difference_type x) const {
             if (p + x > r->d) {
                 if (p + x < r->d + N) {
                     return { r, p + x };
@@ -81,16 +81,19 @@ struct cobarray {
             }
             return { r, r->d + N };
         }
-        I operator+=(int x) {
+        I operator+=(difference_type x) {
             return (*this) + x;
         }
-        I operator-(int x) const {
+        I operator-(difference_type x) const {
             if (p - x > r->d) {
                 if (p - x < r->d + N) {
                     return { r, p - x };
                 }
             }
             return { r, r->d + N };
+        }
+        I operator-=(difference_type x) {
+            return (*this) - x;
         }
         difference_type operator-(I const& x) const {
             return p - x.p;
