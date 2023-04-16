@@ -40,6 +40,15 @@ struct cobi {
         }
         return false;
     }
+    template<template<class> class V> static constexpr V<cobi<T, D, G>> be(T x) {
+        cobi<T, D, G> rzlt;
+        if (rzlt.be(x)) {
+            return rzlt;
+        }
+        else {
+            return {};
+        }
+    }
 
     template <class U, U D1, U G1, U D2, U G2> constexpr friend bool operator==(cobi<U, D1,G1> x, cobi<U, D2,G2> y);
     template <class U, U D1, U G1> constexpr bool operator!=(cobi<U, D1,G1> x) const { return !(*this == x); }

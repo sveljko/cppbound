@@ -287,7 +287,7 @@ If you have two integers of distinct ranges:
 
 ```cpp
     cobi<int, -5, -1> x;
-	cobi<int, 0, 5> y;
+    cobi<int, 0, 5> y;
 ```
 
 then comparing them might be done at compile time:

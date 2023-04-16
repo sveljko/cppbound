@@ -2,6 +2,7 @@
 #include "cobarray.hpp"
 
 #include <iostream>
+#include <optional>
 
 
 void ints()
@@ -30,6 +31,12 @@ void ints()
     // auto no = yn / cobic<-1>;
 
     static_assert(x != z);
+
+    using id = cobint<0,4>;
+    auto o1 = id::be<std::optional>(2);
+    assert(o1 && o1->get() == 2);
+    auto o2 = id::be<std::optional>(5);
+    assert(!o2.has_value());
 }
 
 void arrays()
