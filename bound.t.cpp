@@ -3,6 +3,7 @@
 
 #include <iostream>
 #include <optional>
+#include <cassert>
 
 
 void ints()
