@@ -7,8 +7,8 @@ install_headers(headers, subdir: 'cppbound')
 
 cppbound_dep = declare_dependency(include_directories: include_dirs)
 
-if meson.version().version_compare('>0.54.0')
+if meson.version().version_compare('>=0.54.0')
   meson.override_dependency('cppbound', cppbound_dep)
 endif
 
-test('cppbound_test', executable('cppbound_test', ['bound.t.cpp'], depndencies: [cppbound_dep]))
+test('cppbound_test', executable('cppbound_test', ['bound.t.cpp'], dependencies: [cppbound_dep]))

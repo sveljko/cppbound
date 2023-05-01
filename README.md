@@ -37,7 +37,10 @@ know if you need help with that.
 ## Usage
 
 Should be rather simple. Look at the [examples](bound.t.cpp). Read the docs if you need more
-info.
+info. Since this is a header-only library, you only need to set the include directories.
+
+If you're using the `meson` build tool, there's a `meson.build` so that you can use this as
+a meson subproject, which should take care of include directories.
 
 ## Basic design decisions
 
