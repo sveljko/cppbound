@@ -31,7 +31,7 @@ struct cobi {
     template <T PD, T PG> void operator=(cobi<T, PD, PG> a) {
         static_assert(D <= PD, "Out of lower bounds");
         static_assert(G >= PG, "Out of upper bounds");
-        i = a.i;
+        i = a.get();
     }
     constexpr bool be(T x) {
         if ((x>=D) && (x<=G)) {
