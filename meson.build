@@ -1,4 +1,4 @@
-project('cppbound', 'cpp', version: '1.0.0')
+project('cppbound', 'cpp', version: '1.0.0', default_options: ['cpp_std=c++17'])
 
 include_dirs = include_directories('.')
 headers = files('cobi.hpp', 'cobarray.hpp')

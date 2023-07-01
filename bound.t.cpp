@@ -9,11 +9,13 @@
 void ints()
 {
     constexpr cobint<std::numeric_limits<int>::max() - 2> x;
-    auto y = x + cobic<2>;
+    constexpr auto y = x + cobic<2>;
+    static_assert(y.get() == std::numeric_limits<int>::max());
     // auto w = y + cobic<2>;
 
-    cobint<std::numeric_limits<int>::lowest() + 2> xn;
-    auto yn = xn - cobic<2>;
+    constexpr cobint<std::numeric_limits<int>::lowest() + 2> xn;
+    constexpr auto yn = xn - cobic<2>;
+    static_assert(yn.get() == std::numeric_limits<int>::lowest());
     // auto w = yn - cobic<2>;
 
     constexpr cobint<0, 5> z;

@@ -111,7 +111,7 @@ struct cobarray {
         bool operator> (I const& x) const { return (r == x.r) && (p > x.p); }
         bool operator>=(I const& x) const { return (r == x.r) && (p >= x.p); }
 
-        friend class cobarray;
+        friend struct cobarray;
 
     protected:
         I(cobarray const* r_, T const* p_) : r(const_cast<cobarray*>(r_)), p(const_cast<T*>(p_)) {}
@@ -186,7 +186,7 @@ struct cobarray {
         bool operator> (CI const& x) const { return (r == x.r) && (p > x.p); }
         bool operator>=(CI const& x) const { return (r == x.r) && (p >= x.p); }
 
-        friend class cobarray;
+        friend struct cobarray;
 
     protected:
         CI(cobarray const* r_, T const* p_) : r(r_), p(p_) {}

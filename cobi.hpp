@@ -57,26 +57,26 @@ struct cobi {
     template <class U, U D1, U G1> constexpr bool operator>(cobi<U, D1,G1> x) const { return !(*this < x); }
     template <class U, U D1, U G1> constexpr bool operator>=(cobi<U, D1,G1> x) const { return (*this > x) || (*this == x); }
 
-    template <class U, U D1, U G1> friend cobi<U, -G1, -D1> operator-(cobi<U, D1,G1> x);
+    template <class U, U D1, U G1> friend constexpr cobi<U, -G1, -D1> operator-(cobi<U, D1,G1> x);
 
     template <class U, U D1, U G1, U D2, U G2>
-    friend cobi<U, D1+D2, G1+G2> operator+(cobi<U, D1,G1> x, cobi<U, D2,G2> y);
+    friend constexpr cobi<U, D1+D2, G1+G2> operator+(cobi<U, D1,G1> x, cobi<U, D2,G2> y);
 
     template <class U, U D1, U G1, U D2, U G2>
-    friend cobi<U, D1-G2, G1-D2> operator-(cobi<U, D1,G1> x, cobi<U, D2,G2> y);
+    friend constexpr cobi<U, D1-G2, G1-D2> operator-(cobi<U, D1,G1> x, cobi<U, D2,G2> y);
 
     template <class U, U D1, U G1, U D2, U G2> friend
-    cobi<U, std::min(std::min(D1*D2, G1*G2), std::min(D1*G2, G1*D2)),
+    constexpr cobi<U, std::min(std::min(D1*D2, G1*G2), std::min(D1*G2, G1*D2)),
             std::max(std::max(D1*D2, G1*G2), std::max(D1*G2, G1*D2))>
     operator*(cobi<U, D1,G1> x, cobi<U, D2,G2> y);
 
     template <class U, U D1, U G1, U D2, U G2> friend
-    cobi<U, std::min(std::min(D1/D2, G1/G2), std::min(D1/G2, G1/D2)),
+    constexpr cobi<U, std::min(std::min(D1/D2, G1/G2), std::min(D1/G2, G1/D2)),
             std::max(std::max(D1/D2, G1/G2), std::max(D1/G2, G1/D2))>
     operator/(cobi<U, D1,G1> x, cobi<U, D2,G2> y);
 
     template <class U, U D1, U G1, U D2, U G2> friend
-    cobi<U, std::min(std::min(D1%D2, G1%G2), std::min(D1%G2, G1%D2)),
+    constexpr cobi<U, std::min(std::min(D1%D2, G1%G2), std::min(D1%G2, G1%D2)),
             std::max(std::max(D1%D2, G1%G2), std::max(D1%G2, G1%D2))>
     operator%(cobi<U, D1,G1> x, cobi<U, D2,G2> y);
 
@@ -111,14 +111,14 @@ template <class T, T D1, T G1, T D2, T G2> constexpr bool operator<(cobi<T, D1,G
 }
 
 
-template <class T, T D, T G> cobi<T, -G, -D> operator-(cobi<T, D,G> x) {
+template <class T, T D, T G> constexpr cobi<T, -G, -D> operator-(cobi<T, D,G> x) {
     cobi<T, -G, -D> r;
     r.i = -x.i;
     return r;
 }
 
 template <class T, T D1, T G1, T D2, T G2>
-cobi<T, D1+D2, G1+G2> operator+(cobi<T, D1,G1> x, cobi<T, D2,G2> y) {
+constexpr cobi<T, D1+D2, G1+G2> operator+(cobi<T, D1,G1> x, cobi<T, D2,G2> y) {
 #if defined(_MSC_VER)
     constexpr auto upperG = std::max(G1, G2);
     constexpr auto lowerG = std::min(G1, G2);
@@ -137,12 +137,12 @@ cobi<T, D1+D2, G1+G2> operator+(cobi<T, D1,G1> x, cobi<T, D2,G2> y) {
 }
 
 template <class T, T D1, T G1, T D2, T G2>
-cobi<T, D1-G2, G1-D2> operator-(cobi<T, D1,G1> x, cobi<T, D2,G2> y) {
+constexpr cobi<T, D1-G2, G1-D2> operator-(cobi<T, D1,G1> x, cobi<T, D2,G2> y) {
     return x + (-y);
 }
 
 template <class T, T D1, T G1, T D2, T G2>
-cobi<T, std::min(std::min(D1*D2, G1*G2), std::min(D1*G2, G1*D2)),
+constexpr cobi<T, std::min(std::min(D1*D2, G1*G2), std::min(D1*G2, G1*D2)),
         std::max(std::max(D1*D2, G1*G2), std::max(D1*G2, G1*D2))>
 operator*(cobi<T, D1,G1> x, cobi<T, D2,G2> y) {
 #if defined(_MSC_VER)
@@ -166,7 +166,7 @@ operator*(cobi<T, D1,G1> x, cobi<T, D2,G2> y) {
 }
 
 template <class T, T D1, T G1, T D2, T G2>
-cobi<T, std::min(std::min(D1/D2, G1/G2), std::min(D1/G2, G1/D2)),
+constexpr cobi<T, std::min(std::min(D1/D2, G1/G2), std::min(D1/G2, G1/D2)),
         std::max(std::max(D1/D2, G1/G2), std::max(D1/G2, G1/D2))>
 operator/(cobi<T, D1,G1> x, cobi<T, D2,G2> y)
 {
@@ -180,7 +180,7 @@ operator/(cobi<T, D1,G1> x, cobi<T, D2,G2> y)
 }
 
 template <class T, T D1, T G1, T D2, T G2>
-cobi<T, std::min(std::min(D1%D2, G1%G2), std::min(D1%G2, G1%D2)),
+constexpr cobi<T, std::min(std::min(D1%D2, G1%G2), std::min(D1%G2, G1%D2)),
         std::max(std::max(D1%D2, G1%G2), std::max(D1%G2, G1%D2))>
 operator%(cobi<T, D1,G1> x, cobi<T, D2,G2> y)
 {
