@@ -13,3 +13,4 @@ endif
 
 test('cppbound_test', executable('cppbound_test', ['bound.t.cpp'], dependencies: [cppbound_dep]))
 test('coblist_test', executable('coblist.t', ['coblist.t.cpp'], dependencies: [cppbound_dep]))
+test('cobfwdlist_test', executable('cobfwdlist.t', ['cobfwdlist.t.cpp'], dependencies: [cppbound_dep]))
