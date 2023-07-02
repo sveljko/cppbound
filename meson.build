@@ -12,3 +12,4 @@ if meson.version().version_compare('>=0.54.0')
 endif
 
 test('cppbound_test', executable('cppbound_test', ['bound.t.cpp'], dependencies: [cppbound_dep]))
+test('coblist_test', executable('coblist.t', ['coblist.t.cpp'], dependencies: [cppbound_dep]))

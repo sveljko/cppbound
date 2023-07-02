@@ -6,11 +6,8 @@
 #if !defined(INC_COBARRAY)
 #define      INC_COBARRAY
 
-#include "cobi.hpp"
 
-#include <type_traits>
-#include <limits>
-#include <algorithm>
+#include "cobi.hpp"
 
 
 template <class T, int N>
@@ -34,7 +31,7 @@ struct cobarray {
     }
 
     void fill(T const& v) {
-        for (T* p = d; d < p + N; ++p) {
+        for (T* p = d; p < d + N; ++p) {
             *p = v;
         }
     }
@@ -194,6 +191,8 @@ struct cobarray {
 
     constexpr I begin() { return I{this, &d[0]}; }
     constexpr I end() { return I{this, d + N}; }
+    constexpr CI begin() const { return CI{this, &d[0]}; }
+    constexpr CI end() const { return CI{this, d + N}; }
     constexpr CI cbegin() const { return CI{this, &d[0]}; }
     constexpr CI cend() const { return CI{this, d + N}; }
 

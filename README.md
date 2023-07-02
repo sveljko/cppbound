@@ -17,7 +17,22 @@ There are:
   to be in range at compile time (with range bound integers) and there are no
   potentially unsafe interfaces. Invalid iterators point to a "safety spot", so 
   if someone dereferences them on purpose, there's no undefined behavior. You'll 
-  still get _incorrect_ behavior, but, it's safe, not _undefined_.
+  still get _incorrect_ behavior, but, it's safe, not _undefined_. The only
+  undefined behavior left are iterators thet outlive their arrays, which is a
+  design flaw in STL, which there is no easy way around, and without support for
+  STL iterators, the whole `<algorithm>` and range-for would not be available.
+  So, don't ever use iterators on your own, but just to pass to standard
+  algorithms or implicitly in range-for, and you should be good.
+* Capacity bound lists. Interface is similar to `std::list`/`std::forward_list`, 
+  but, their capacity is fixed at compile time. So, inserting can fail (no more 
+  room). Also, the "pool" of elements is allocated in an array "up front", 
+  quite unlike `std::list`. On the flip side, the iterators, even invalidated, 
+  can always be dereferenced while the list is live, although they might not be 
+  in the list at that time (there's a member function to check that, but it's
+  slow, so you have to call it explicitly). So, you may get unspecified, but 
+  not undefined behavior. As for iterators outliving their lists, there are 
+  interfaces which use indeces rather than iterators, which are safe and you 
+  should use them when not dealing with STL.
 
 This should provide, with the caveats mentioned above, the same level
 of safety as, say, Ada/Spark's "no runtime errors". It's actually
@@ -348,3 +363,27 @@ use the pointers as iterators, as these should never "do the nasty".
 
 One thing, though - we don't initialize the members of the array, because arrays can be very
 big and that might be detrimental to the performance.
+
+## Range bound lists
+
+Lists maintain a helper list, which is a stack of free elements. The next (and previous)
+"pointers" are actually indeces to said elements, and are kept in helper arrays of indeces.
+
+Like arrays, we have one more element than "asked for" and the "end()" iterator points to
+it. We use its index as the equivivalent of a `nullptr` from the usual "dynamically
+allocated lists".
+
+The interface of `std::list` is mostly there and behaves similarly, but those functions that
+use iterators should not be used unless you have to. Use the alternate/mimicked functions
+which accept the indeces, which are safe. For sanity checks, you can use `contains()` which
+will check whether the given index is in the list. It's slow (O(N)), but, provides a higher
+level of ensurance of correctness.
+
+If you take a look at the code, you will notice that there may be many problems in the code
+which cannot be addressed with our compile-time bound integers and arrays. The forward
+and backward links may become unsync, a list might get tangled into a circular list, 
+rendering some loops into infinite loops, etc. None of that can be avoided with `cobi` 
+tools in themself. But, if we avoid STL iterators, we can at least know that there is no 
+undefined behavior and all bugs should be reproducible and unit tests do give a high 
+degree of assurance that code is correct. Also, one can see that checking for ranges of 
+integers can lead to somewhat clumsy-looking code, but that's the price of safety.
