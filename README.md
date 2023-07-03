@@ -156,6 +156,42 @@ There it is! Even though we're using `auto` and thus "accepting" whatever
 range of `z + x` might be, since `z + x` overflows, that would be undefined behavior,
 and we can't have that.
 
+### Iterate over the whole range
+
+If you know Ada, you know the nice syntax:
+
+```ada
+   for i in x'range loop
+```
+
+We haven't figured out a nice syntax here, because there are no
+"attributes" in C++ and the condition to exit isn't trivial if you
+want to avoid overflow. That is, if you want to use the c++ range
+loop, what would be the `end()`? It can't be the upper limit plus one,
+as that might overflow if the upper limit is at the maximum of the
+underlying type. Everything we tried looked weird. So, until we do,
+you should:
+
+```cpp
+cobint<LOWER, UPPER> i;
+do {
+    // --> use `i` here
+} while (i.advance());
+```
+
+So, it's a little verbose, but, not oherwise weird. It relies on
+constructor setting the value to the lower bound.
+
+To go backwards:
+
+```cpp
+auto i = cobint<LOWER, UPPER>::greatest();
+do {
+    // --> use `i` here
+} while (i.ebb());
+```
+
+
 ### Compiler error messages
 
 TLDR; they're not great.
