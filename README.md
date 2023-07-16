@@ -136,7 +136,7 @@ This is a little strange at first, but, think about it, if `x == 5` _and_
 `y == 5`, then `x + y == 10`, which is clearly larger than `5`, and we can't
 have that.
 
-We're used to just adding integers, but, as we know, that can overflow, it's just
+We're used to adding integers with no checks, but, as we know, that can overflow, it's just
 that we don't think much about it. With `cobi`, we still don't have to:
 
 ```cpp
@@ -161,21 +161,50 @@ and we can't have that.
 If you know Ada, you know the nice syntax:
 
 ```ada
-   for i in x'range loop
+    for i in x'range loop
 ```
 
-We haven't figured out a nice syntax here, because there are no
-"attributes" in C++ and the condition to exit isn't trivial if you
-want to avoid overflow. That is, if you want to use the c++ range
-loop, what would be the `end()`? It can't be the upper limit plus one,
-as that might overflow if the upper limit is at the maximum of the
-underlying type. Everything we tried looked weird. So, until we do,
-you should:
+There are no _such_ attributes in C++, but there is 
+range-for, so we provide a `range()` function. 
+
+```cpp
+    cobi<WHATEV, LOWER, UPPER> x;
+    for (auto i: x.range()) {
+        std::cout << i; // or, whatever...
+    }
+```
+
+The `range()` is actually a static function, so, if
+you have an alias and don't have a variable:
+
+```cpp
+    for (auto i: usbi::range()) {
+        std::cout << i ;
+    }
+```
+
+This is valid iterator-pair range, so numeric algorithms
+should work fine:
+
+```cpp
+   auto r = std::accumulate(x.range().begin(), x.range.end(), 0);
+```
+
+There's one downside, this uses one integer as the `end()`
+iterator mark, so, you can't have the full range.
+
+```cpp
+    cobint<0, std::numeric_limits<int>::max> x;
+    auto r = x.range(); // !!! can't have that
+```
+
+If you don't want to involve iterators, ranges and such,
+or just need the bound to be the maximum:
 
 ```cpp
 cobint<LOWER, UPPER> i;
 do {
-    // --> use `i` here
+    // use `i` here
 } while (i.advance());
 ```
 
@@ -187,7 +216,7 @@ To go backwards:
 ```cpp
 auto i = cobint<LOWER, UPPER>::greatest();
 do {
-    // --> use `i` here
+    // use `i` here
 } while (i.ebb());
 ```
 
@@ -332,7 +361,7 @@ Assuming that we had bitwise and operator, this illustrates the range of the res
     cobi<int,  0,  1> r  = x & w;
 ```
 
-It's actually non-trivial to come up with the actual final range and we just never had 
+It's actually non-trivial to come up with the final range and we just never had 
 a need for this. If someone does find a need for this, it could be added.
 
 ### Comparison might be done at compile time
@@ -358,7 +387,9 @@ certain situations.
 
 For those, we provide a shortcut:
 
+```cpp
     cobint<0,5>
+```
 
 is the same as
 

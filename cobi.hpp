@@ -11,6 +11,26 @@
 #include <algorithm>
 
 
+template<class T, T D, T G = D> struct cobrng {
+    static_assert(std::is_integral<T>::value, "T must be an integer type");
+    static_assert(D <= G, "Upper bound must be at least as high as lower");
+    static_assert(std::numeric_limits<T>::max() > G, "Upper bound must be less than maximum value");
+    T i;
+
+public:
+    constexpr cobrng() : i(D) {}
+
+    static constexpr cobrng begin() { return cobrng{}; }
+    static constexpr cobrng end() { cobrng x; x.i = G+1; return x; }
+
+    constexpr cobrng& operator++() { i = (i <= G) ? i+1 : i; return *this; }
+    constexpr cobrng& operator--() { i = (i > D) ? i-1 : i; return *this; }
+
+    constexpr const T operator*() const { return i; }
+    constexpr bool operator==(cobrng<T,D,G> x) { return i == x.i; }
+    constexpr bool operator!=(cobrng<T,D,G> x) { return i != x.i; }
+};
+
 template <class T, T D, T G = D> struct cobi {
     static_assert(std::is_integral<T>::value, "T must be an integer type");
     static_assert(D <= G, "Upper bound must be at least as high as lower");
@@ -20,6 +40,10 @@ template <class T, T D, T G = D> struct cobi {
     constexpr cobi()
         : i(D)
     {
+    }
+
+    static constexpr cobrng<T,D,G> range() {
+        return cobrng<T,D,G>{};
     }
 
     template <T PD, T PG>
@@ -125,28 +149,28 @@ template <class T, T D, T G = D> struct cobi {
     }
 
     template <class U, U D1, U G1>
-    friend cobi<U, -G1, -D1> operator-(cobi<U, D1, G1> x);
+    friend constexpr  cobi<U, -G1, -D1> operator-(cobi<U, D1, G1> x);
 
     template <class U, U D1, U G1, U D2, U G2>
-    friend cobi<U, D1 + D2, G1 + G2> operator+(cobi<U, D1, G1> x, cobi<U, D2, G2> y);
+    friend constexpr cobi<U, D1 + D2, G1 + G2> operator+(cobi<U, D1, G1> x, cobi<U, D2, G2> y);
 
     template <class U, U D1, U G1, U D2, U G2>
-    friend cobi<U, D1 - G2, G1 - D2> operator-(cobi<U, D1, G1> x, cobi<U, D2, G2> y);
+    friend constexpr cobi<U, D1 - G2, G1 - D2> operator-(cobi<U, D1, G1> x, cobi<U, D2, G2> y);
 
     template <class U, U D1, U G1, U D2, U G2>
-    friend cobi<U,
+    friend constexpr cobi<U,
                 std::min(std::min(D1* D2, G1* G2), std::min(D1* G2, G1* D2)),
                 std::max(std::max(D1* D2, G1* G2), std::max(D1* G2, G1* D2))>
     operator*(cobi<U, D1, G1> x, cobi<U, D2, G2> y);
 
     template <class U, U D1, U G1, U D2, U G2>
-    friend cobi<U,
+    friend constexpr cobi<U,
                 std::min(std::min(D1 / D2, G1 / G2), std::min(D1 / G2, G1 / D2)),
                 std::max(std::max(D1 / D2, G1 / G2), std::max(D1 / G2, G1 / D2))>
     operator/(cobi<U, D1, G1> x, cobi<U, D2, G2> y);
 
     template <class U, U D1, U G1, U D2, U G2>
-    friend cobi<U,
+    friend constexpr cobi<U,
                 std::min(std::min(D1 % D2, G1 % G2), std::min(D1 % G2, G1 % D2)),
                 std::max(std::max(D1 % D2, G1 % G2), std::max(D1 % G2, G1 % D2))>
     operator%(cobi<U, D1, G1> x, cobi<U, D2, G2> y);

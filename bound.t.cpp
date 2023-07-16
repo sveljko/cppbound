@@ -1,6 +1,8 @@
 #include "cobi.hpp"
 #include "cobarray.hpp"
 
+#include <numeric>
+
 #include <iostream>
 #include <optional>
 #include <cassert>
@@ -42,6 +44,28 @@ void ints()
     assert(!o2.has_value());
 }
 
+
+void intrange() 
+{
+    //constexpr cobint<std::numeric_limits<int>::max()> x;
+    //constexpr auto rng = x.range();
+
+    constexpr cobint<std::numeric_limits<int>::max()-1> y;
+    constexpr auto rng = y.range();
+    static_assert(++rng.begin() == rng.end());
+
+    constexpr cobint<0,5> z;
+    int s = 0;
+    for (auto i: z.range()) {
+        s += i;
+    }
+    assert(s == 15);
+    auto a = std::accumulate(z.range().begin(), z.range().end(), 0);
+    assert(s == a);
+
+}
+
+
 void arrays()
 {
     cobarray<int, 3> a;
@@ -64,6 +88,7 @@ void arrays()
 int main()
 {
     ints();
+    intrange();
     arrays();
 
     return 0;
