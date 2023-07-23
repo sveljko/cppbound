@@ -31,6 +31,7 @@ public:
     constexpr bool operator!=(cobrng<T,D,G> x) { return i != x.i; }
 };
 
+
 template <class T, T D, T G = D> struct cobi {
     static_assert(std::is_integral<T>::value, "T must be an integer type");
     static_assert(D <= G, "Upper bound must be at least as high as lower");
@@ -331,6 +332,28 @@ operator%(cobi<T, D1,G1> x, cobi<T, D2,G2> y)
     r.i = x.i / y.i;
     return r;
 }
+
+
+template<class T, T D, T G = D> struct cobirange {
+    static_assert(std::is_integral<T>::value, "T must be an integer type");
+    static_assert(D <= G, "Upper bound must be at least as high as lower");
+    static_assert(std::numeric_limits<T>::max() > G, "Upper bound must be less than maximum value");
+    cobi<T,D,G+1> i;
+
+public:
+    constexpr cobirange() {}
+    constexpr cobirange(cobi<T,D,G+1> x) { i = x; }
+
+    static constexpr cobirange begin() { return cobirange{}; }
+    static constexpr cobirange end() { return cobi<T,D,G+1>::greatest(); }
+
+    constexpr cobirange& operator++() { i.advance(); return *this; }
+    constexpr cobirange& operator--() { i.ebb(); return *this; }
+
+    constexpr const cobi<T,D,G> operator*() const { cobi<T,D,G> r; r.be(i.get()); return r; }
+    constexpr bool operator==(cobirange x) { return i == x.i; }
+    constexpr bool operator!=(cobirange x) { return i != x.i; }
+};
 
 
 #endif // !defined(INC_COBI)

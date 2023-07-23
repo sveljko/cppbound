@@ -196,6 +196,8 @@ struct cobarray {
     constexpr CI cbegin() const { return CI{this, &d[0]}; }
     constexpr CI cend() const { return CI{this, d + N}; }
 
+    constexpr cobirange<int,0,N-1> irange() { return cobirange<int,0,N-1>{}; }
+
 private:
     T d[N+1];
 };

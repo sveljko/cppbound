@@ -414,8 +414,27 @@ Other than using Range Bound Integers for the index, thus knowing at compile tim
 out of array bounds access, we also don't follow the STL interface "to the letter".
 
 We don't give the reference to any member - you get copies. While this may be a performance
-penalty (or it might not, since this is a template, compiler might optimize the copy away),
-it also means that there's no means to abuse the provided reference.
+penalty it also means that there's no means to abuse the provided reference. This will
+*not* compile:
+
+```cpp
+    cobarray<int, 3> a;
+    int& r = a.get(cobic<0>); // cannot bind temp to non-const reference
+```
+
+While you can find your way into Undefined Behavior with, say, `std::array<>`:
+
+```cpp
+    int& f() {
+        std::array<int, 3> a;
+		return a[1];
+	}
+	int& r = f();
+	r = 5; // !!! writing to a dangling reference
+```
+
+Sure, for such obvious cases your compiler might produce a warning, but for real-life
+problems, you probably won't be so lucky. Also, errors are better than warnings.
 
 Another interesting thing is that we allocate one extra element as the "landing zone" for the
 "iterator out of bounds". So, if you push the iterator out of the bounds of the array, it will
@@ -426,18 +445,30 @@ checks in the iterator.
 
 If you need the lost speed _and_ if you're only gonna use the iterators with standard algorithms 
 and the `for` ranged loop, then it should be fine to remove the helper iterator class and just 
-use the pointers as iterators, as these should never "do the nasty". 
+use the pointers as iterators, as these should never "do the nasty".
+
+A safe way to iterage through the array is to use a helper range iterator, like:
+
+```cpp
+    cobarray<WHATEV, DIM> a;
+    for (auto i: a.irange()) {
+	    a.set(i, SOMETHING);
+	    std::cout << a.get(i);
+	}
+```
 
 One thing, though - we don't initialize the members of the array, because arrays can be very
-big and that might be detrimental to the performance.
+big and that might be detrimental to the performance. Of course, the default constructor will
+be called for each element, so be mindful of what you put into this array.
+
 
 ## Range bound lists
 
-Lists maintain a helper list, which is a stack of free elements. The next (and previous)
+Lists maintain a helper stack of free elements. The next (and previous)
 "pointers" are actually indeces to said elements, and are kept in helper arrays of indeces.
 
-Like arrays, we have one more element than "asked for" and the "end()" iterator points to
-it. We use its index as the equivivalent of a `nullptr` from the usual "dynamically
+Like for arrays, we have one more element than "asked for" and the "end()" iterator points 
+to it. We use its index as the equivivalent of a `nullptr` from the usual "dynamically
 allocated lists".
 
 The interface of `std::list` is mostly there and behaves similarly, but those functions that

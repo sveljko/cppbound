@@ -85,11 +85,29 @@ void arrays()
     std::cout << std::endl;
 }
 
+
+void arrange()
+{
+    cobarray<int, 4> a;
+
+    a.set(cobic<0>, 2);
+    a.set(cobic<1>, 4);
+    a.set(cobic<2>, 3);
+    a.set(cobic<3>, 9);
+
+    for (auto x: a.irange()) {
+	std::cout << a.get(x) << " ";
+    }
+    std::cout << std::endl;
+}
+
+
 int main()
 {
     ints();
     intrange();
     arrays();
+    arrange();
 
     return 0;
 }
