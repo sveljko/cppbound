@@ -71,11 +71,17 @@ similar nasty things.
 
 Also, we're aiming for smallest amount of code, both for simplicity, ease of
 maintenance and for higher assurance of correctness, as this is rather fundamental
-code - if you do rely on it for safety, it'd better be right.
+code - if you do rely on it for safety, it'd better be right. This also implies a
+minimalistic feature set. For example, it's highly unlikely we will ever add a
+"big integer" type.
 
 For example, there's [bounded-integer](https://github.com/davidstone/bounded-integer),
 which is a 900 pound gorrila with just about anything you could think of. But, it's a
 lot of code and one probably needs only a portion thereof in most cases. 
+There are some others, for example, [safe-arithmetic](https://github.com/intel/safe-arithmetic)
+has the same general aim as we do, but is more narrow-focused on arithmetics and is much
+larger with lots of features that are less frequently used in general 
+(also, at the time of this writing is in "pre-release work-in-progress" stage).
 
 Each type is in a header of it's own, though it might include other headers,
 as needed. While being "header-only" is not a goal, so far all the types are
@@ -362,7 +368,12 @@ Assuming that we had bitwise and operator, this illustrates the range of the res
 ```
 
 It's actually non-trivial to come up with the final range and we just never had 
-a need for this. If someone does find a need for this, it could be added.
+a need for this.
+
+The [safe-arithmetic](https://github.com/intel/safe-arithmetic) provides bitwise
+operations by having a different check - a bitmask based one. In our design this
+requires a different type, which might be added in the future. But `cobi` will
+probably never "acquire" bitwise operators.
 
 ### Comparison might be done at compile time
 
@@ -427,10 +438,10 @@ While you can find your way into Undefined Behavior with, say, `std::array<>`:
 ```cpp
     int& f() {
         std::array<int, 3> a;
-		return a[1];
-	}
-	int& r = f();
-	r = 5; // !!! writing to a dangling reference
+        return a[1];
+    }
+    int& r = f();
+    r = 5; // !!! writing to a dangling reference
 ```
 
 Sure, for such obvious cases your compiler might produce a warning, but for real-life
@@ -452,9 +463,9 @@ A safe way to iterage through the array is to use a helper range iterator, like:
 ```cpp
     cobarray<WHATEV, DIM> a;
     for (auto i: a.irange()) {
-	    a.set(i, SOMETHING);
-	    std::cout << a.get(i);
-	}
+        a.set(i, SOMETHING);
+        std::cout << a.get(i);
+    }
 ```
 
 One thing, though - we don't initialize the members of the array, because arrays can be very
