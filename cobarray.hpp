@@ -19,14 +19,16 @@ struct cobarray {
     using pointer = T *;
     using reference = T &;
 
+    using index = cobi<int, 0, N-1>;
+
     constexpr bool empty() const noexcept { return false; }
     constexpr unsigned size() const noexcept { return N; }
     constexpr unsigned max_size() const noexcept { return N; }
 
-    constexpr T get(cobi<int, 0, N-1> i) const {
+    constexpr T get(index i) const {
         return d[i.get()];
     }
-    constexpr T set(cobi<int, 0, N-1> i, T const& t)  {
+    constexpr T set(index i, T const& t)  {
         return d[i.get()] = t;
     }
 
