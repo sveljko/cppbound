@@ -341,11 +341,13 @@ template<class T, T D, T G = D> struct cobirange {
     cobi<T,D,G+1> i;
 
 public:
-    constexpr cobirange() {}
-    constexpr cobirange(cobi<T,D,G+1> x) { i = x; }
+    using value_type = cobi<T,D,G+1>;
 
-    static constexpr cobirange begin() { return cobirange{}; }
-    static constexpr cobirange end() { return cobi<T,D,G+1>::greatest(); }
+    constexpr cobirange() {}
+    constexpr cobirange(value_type x) { i = x; }
+
+    static constexpr cobirange begin() { return value_type::smallest(); }
+    static constexpr cobirange end() { return value_type::greatest(); }
 
     constexpr cobirange& operator++() { i.advance(); return *this; }
     constexpr cobirange& operator--() { i.ebb(); return *this; }
