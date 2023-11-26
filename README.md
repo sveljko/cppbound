@@ -33,6 +33,10 @@ There are:
   not undefined behavior. As for iterators outliving their lists, there are 
   interfaces which use indeces rather than iterators, which are safe and you 
   should use them when not dealing with STL.
+* Capacity bound skip lists. Currently only model the `std::set<>` interface.
+  If the need arises, should be simple to add `std::multiset<>`, `std::map<>`
+  and `std::multimap<>` support. Other remarks are similar to general capacity 
+  bound lists above.
 
 This should provide, with the caveats mentioned above, the same level
 of safety as, say, Ada/Spark's "no runtime errors". It's actually
@@ -357,7 +361,6 @@ AND. Let's say operands are
     cobi<int,16> z;
     cobi<int,16,17> w;
 ```
-	
 
 Assuming that we had bitwise and operator, this illustrates the range of the result:
 
@@ -372,8 +375,8 @@ a need for this.
 
 The [safe-arithmetic](https://github.com/intel/safe-arithmetic) provides bitwise
 operations by having a different check - a bitmask based one. In our design this
-requires a different type, which might be added in the future. But `cobi` will
-probably never "acquire" bitwise operators.
+requires a different type, which might be added in the future. But `cobi` itself
+will probably never "acquire" bitwise operators.
 
 ### Comparison might be done at compile time
 
@@ -496,3 +499,27 @@ tools in themself. But, if we avoid STL iterators, we can at least know that the
 undefined behavior and all bugs should be reproducible and unit tests do give a high 
 degree of assurance that code is correct. Also, one can see that checking for ranges of 
 integers can lead to somewhat clumsy-looking code, but that's the price of safety.
+
+## Range bound  singly linked (forward) lists
+
+Just like the ones from the STL, these save some memory and have slightly better performance
+for most functions compared to their doubly linked counterpart, but can only be traversed one 
+way (forward) and one can't simply (and efficiently) remove an item by position/iterator.
+
+## Skiplists for associative containers
+
+Skiplists are a good fit for this library, with each node being an array of links 
+("pointers") to the next node per level. Also, this makes them easy to make cache-friendly, 
+putting all  nodes in an array.
+
+For code clarity, these are singly linked skiplists, which means that removing by iterator
+is as efficient as removing by value. If some application requires better  performance for 
+removing by iterator, a "doubly linked skiplist" should be implemented.
+
+Parts of the STL associative containers interface that obviously "hint" that it expects they 
+are implemented as red-black-trees are omitted. Other parts are missing simply because of a 
+lack of need so far and are easilly added.
+
+Skiplists rely on a good RNG to randomize the levels of each node, thus we currently 
+"hard-code" to a good, well-known RNG from the C++ standard library. This requires 
+further study on how to allow the user to parameterize RNG w/out performance degradation.
