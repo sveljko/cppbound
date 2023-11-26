@@ -98,10 +98,8 @@ struct cobarray {
             return p - x.p;
         }
 
-        T& operator*() { return *p; }
-        T const& operator*() const { return *p; }
-        T* operator->() { return p; }
-        T const* operator->() const { return p; }
+        T& operator*() const { return *p; }
+        T* operator->() const { return p; }
 
         bool operator==(I const& x) const { return (r == x.r) && (p == x.p); }
         bool operator!=(I const& x) const { return (r != x.r) || (p != x.p); }
