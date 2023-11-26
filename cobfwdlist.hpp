@@ -129,7 +129,7 @@ struct cobfwdlist {
         using difference_type = std::ptrdiff_t;
         using pointer = T*;
         using reference = T&;
-        using iterator_category = std::bidirectional_iterator_tag;
+        using iterator_category = std::forward_iterator_tag;
        
         CI(CI const& x) : r(x.r), l(x.l) {}
         CI(I const& x) : r(x.r), l(x.l) {}
