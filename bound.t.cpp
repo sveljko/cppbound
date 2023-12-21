@@ -83,6 +83,14 @@ void arrays()
         std::cout << x << " ";
     }
     std::cout << std::endl;
+
+    struct S {
+        int i;
+        float f;
+    };
+    cobarray<S, 3> as;
+    as.set(cobic<0>, &S::f, 2.0f);
+    assert(2.0 == as.get(cobic<0>, &S::f));
 }
 
 

@@ -31,6 +31,14 @@ struct cobarray {
     constexpr T set(index i, T const& t)  {
         return d[i.get()] = t;
     }
+    template <class V>
+    constexpr V get(index i, V T::*m) const {
+        return d[i.get()].*m;
+    }
+    template <class V>
+    constexpr V set(index i, V T::*m, V const& v) {
+        return d[i.get()].*m = v;
+    }
 
     void fill(T const& v) {
         for (T* p = d; p < d + N; ++p) {

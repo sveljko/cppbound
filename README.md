@@ -475,6 +475,23 @@ One thing, though - we don't initialize the members of the array, because arrays
 big and that might be detrimental to the performance. Of course, the default constructor will
 be called for each element, so be mindful of what you put into this array.
 
+### But I have a large struct to keep in the array!
+
+Obviously, if the struct is very large, then copying it around all the time just to get/set 
+a small member implies low performance. To circumvent that, there are overloaded `get()` 
+and `set()` to be used to get set a data member. You just need to pass the pointer-to-member, 
+too. Something like:
+
+```cpp
+    struct S {
+        int i[200];
+        float f;
+    };
+    cobarray<S, 3> as;
+    as.set(cobic<0>, &S::f, 2.0f);
+    assert(2.0 == as.get(cobic<0>, &S::f));
+```
+
 
 ## Range bound lists
 
