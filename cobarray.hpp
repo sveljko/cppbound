@@ -31,12 +31,20 @@ struct cobarray {
     constexpr T set(index i, T const& t)  {
         return d[i.get()] = t;
     }
-    template <class V>
-    constexpr V get(index i, V T::*m) const {
+    constexpr bool maybe_set(T i, T const& t)  {
+        index idx;
+        if (idx.be(i)) {
+            d[idx.get()] = t;
+            return true;
+	}
+	return false;
+    }
+    template <class V, class U=T>
+    constexpr std::enable_if_t<std::is_class_v<U>,V> get(index i, V U::*m) const   {
         return d[i.get()].*m;
     }
-    template <class V>
-    constexpr V set(index i, V T::*m, V const& v) {
+    template <class V, class U=T>
+    constexpr std::enable_if_t<std::is_class_v<U>,V> set(index i, V U::*m, V const& v) {
         return d[i.get()].*m = v;
     }
 
@@ -44,6 +52,11 @@ struct cobarray {
         for (T* p = d; p < d + N; ++p) {
             *p = v;
         }
+    }
+
+    constexpr bool operator!=(cobarray const& x) {
+        auto [i, j] = std::mismatch(begin(), end(), x.begin());
+	return i != end();
     }
 
     class I {

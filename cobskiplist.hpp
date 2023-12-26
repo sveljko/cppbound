@@ -190,7 +190,6 @@ struct cobskiplist
 
         const link fresh = alloc();
         level lvl = climb();
-        CMP cmp;
         do {
             link l = lkp.first.get(lvl);
             if (l == nil) {
@@ -233,7 +232,6 @@ struct cobskiplist
 
     constexpr unsigned erase(T const &v)
     {
-        CMP cmp;
         unsigned rslt = 0;
         level lvl = level::greatest();
         do {
