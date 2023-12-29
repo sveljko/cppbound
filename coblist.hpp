@@ -427,6 +427,14 @@ struct coblist {
         return (pos.r == this) && contains(pos.l);
     }
 
+    constexpr T get(link l) const {
+        return d[l.get()];
+    }
+
+    constexpr void set(link l, T const& t) const {
+        return d[l.get()] = t;
+    }
+
 private:
     template <class U> struct ignore {
         ignore() {}

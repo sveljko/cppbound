@@ -11,8 +11,8 @@ things, but, there's nothing like "what if my integer addition overflows" or
 
 There are:
 
-* Range bound integers. Like in Ada. Beside being statically bound (say, from 0 to 5),
-  they also cannot overflow (actually more like Spark/Ada).
+* Range bound integers. Like in Ada. Beside being statically bound
+  (say, from 0 to 5), they also cannot overflow (more like Spark/Ada).
 * Dimension bound arrays. Similar to `std::array<>`, but, indexing is checked
   to be in range at compile time (with range bound integers) and there are no
   potentially unsafe interfaces. Invalid iterators point to a "safety spot", so 
@@ -23,6 +23,8 @@ There are:
   STL iterators, the whole `<algorithm>` and range-for would not be available.
   So, don't ever use iterators on your own, but just to pass to standard
   algorithms or implicitly in range-for, and you should be good.
+* Dimension bound matrices - two dimensional arrays. Needed to avoid copying
+  whole rows on accessing elements.
 * Capacity bound lists. Interface is similar to `std::list`/`std::forward_list`, 
   but, their capacity is fixed at compile time. So, inserting can fail (no more 
   room). Also, the "pool" of elements is allocated in an array "up front", 
@@ -37,6 +39,29 @@ There are:
   If the need arises, should be simple to add `std::multiset<>`, `std::map<>`
   and `std::multimap<>` support. Other remarks are similar to general capacity 
   bound lists above.
+* Capacity bound Timer lists. Very simple and flexible. One can start
+  a timer - O(N), stop it by ID - O(N), stop by index gotten when
+  starting - O(1) and process the ones that have expired - O(1).
+* Capacity bound Timer list wheel. An optimization with a number of
+  "spokes" each being a timer list and used for timers that expire
+  "modulo spokes". Thus inserting and searching is "spokes times
+  faster". It loses some flexibility as it now has to be based on
+  "ticks", the durations cannot be arbitrary any more. Also, there is
+  a loss in precision proportional to the number of spokes. One can
+  get around this loss of precision by trading it off with loss of
+  performance, if on each "tick" each spoke is checked for expired
+  timers (rather than only the "next" spoke being checked).
+* Capacity bound Timer mill. It has several wheels, but each spoke is
+  now a simple "vector" of timers. Each wheel has a different scale of
+  ticks, thus longer timers lose more precision. Also there is a limit
+  for possible max duration. These issues are compensated by insertion
+  now being O(1). There are two variants - regular and lean. For
+  regular, each spoke is a doubly linked list. This can be a large
+  footprint, so, if you need to conserve memory, use the lean mill.
+  It's also a little slower, but, it has a drawback - when a timer
+  is cancelled, it's not actually removed from the list, it's just
+  "nulified". That is, you need to have a way to distinguies this
+  "cancelled" timer from a "non-cancelled one". 
 
 This should provide, with the caveats mentioned above, the same level
 of safety as, say, Ada/Spark's "no runtime errors". It's actually
@@ -540,3 +565,64 @@ lack of need so far and are easilly added.
 Skiplists rely on a good RNG to randomize the levels of each node, thus we currently 
 "hard-code" to a good, well-known RNG from the C++ standard library. This requires 
 further study on how to allow the user to parameterize RNG w/out performance degradation.
+
+
+## Timers
+
+There are several timer "modules" available. Their interface is almost
+the same, all support starting, stopping by ID, stopping by index
+(which you get on starting) and processing the expired ones.
+
+How to choose which one to use:
+
+1. If you have a list of at most a several dozen timers, just use the
+   "simple" timer list. It's very flexible and works predictibly
+   well, with no precision loss and such.
+2. For up to a few hundred timers, use the wheel to get better
+   performance, reducing the list of each spoke to several dozen
+   timers. Choose the quick variant if you can accept the loss of
+   precision. The number of spokes should not be large, in general, 10
+   is a good choice.
+3. If you are OK with progressive loss of precision, regular mill
+   is the best. If you need a smaller footprint and have a way to
+   distinguish a cancelled timer, use the lean mill.
+4. Otherwise, use a "high precision" timer list, which is simply an
+   associative container where each element holds the time at which
+   timer should expire. This is currently not implemented, because
+   it's pretty simple to do, just use the skip list as the container.
+
+Keep in mind that these do not enforce the uniquiness of timer IDs in
+no way, it's up to the user to do so. That is, if you start two or
+more timers with the same ID and then stop by that same ID, there
+are no guarantees which of the two will be stopped.
+
+Also, there is no "garbage collection" here. If a timer expires and
+then you stop it by index, there's no telling what will happen.  If
+there is a new timer started with the same index, you will stop that
+new timer rather than "your own". If no timer is started currently,
+there's a chance you'll get a corrupted list. So, do _not_ stop by
+index unless you're sure the timer is still running.
+
+If you push a timer expiry to some event queue, then there is a chance
+user might try to stop a timer after it's removed from the timer
+module, but still in the queue, not processed yet. There is no support
+to handle this situation, if stopping such timer is needed, user
+should have some additional map of "expired but not yet handled
+timers".
+
+See [Timer Interface Spec](timers.md).
+
+
+### Using timers as a deadline scheduler
+
+Event to be processed by a deadline can be presented by a timer that
+will expire on that deadline. The only thing that is needed is a way
+to "get the first timer to expire and cancel it", which is equivalent
+of dequeuing the next event to process from the event queue.
+
+If a timer expires, that means its deadline was not met.
+
+So, we provide an unusual "stop the first timer" which will return the
+ID of that timer, if it exists. Use that to dequeue the next event to
+process, and you'll have a deadline scheduler.
+

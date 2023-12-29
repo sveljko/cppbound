@@ -31,7 +31,7 @@ struct cobarray {
     constexpr T set(index i, T const& t)  {
         return d[i.get()] = t;
     }
-    constexpr bool maybe_set(T i, T const& t)  {
+    constexpr bool maybe_set(int i, T const& t)  {
         index idx;
         if (idx.be(i)) {
             d[idx.get()] = t;

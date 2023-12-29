@@ -8,33 +8,17 @@
 
 #include "cobarray.hpp"
 
+#include "cobhlp.hpp"
+
 #include <random>
 #include <utility>    // std::pair
-#include <functional> // std::less / consider using our own
-#include <iosfwd>
 
 
-template <class T, int N, class CMP = std::less<T>>
+template <class T, int N, class CMP = cobhlp::less<T>>
 struct cobskiplist
 {
-    // TODO avoid defining this ourselves
-    static constexpr unsigned log2(unsigned v)
-    {
-        unsigned r = (v > 0xFFFFU) << 4;
-        v >>= r;
-        unsigned shift = (v > 0xFFU) << 3;
-        v >>= shift;
-        r |= shift;
-        shift = (v > 0xFU) << 2;
-        v >>= shift;
-        r |= shift;
-        shift = (v > 0x3U) << 1;
-        v >>= shift;
-        r |= shift | (v >> 1);
-        return r;
-    }
-    static_assert(log2(N) > 2, "So small skiplists are overkill");
-    static constexpr auto max_level = log2(N);
+    static_assert(cobhlp::log2(N) > 2, "Skiplist too small");
+    static constexpr auto max_level = cobhlp::log2(N);
 
     using size_type = unsigned;
     using value_type = T;
@@ -269,17 +253,17 @@ struct cobskiplist
     constexpr size_type count(T const &v) const
     {
         auto pos = lookup(v);
-        return pos != nil;
+        return pos.first.get(pos.second) != nil;
     }
     constexpr I find(T const &v)
     {
-        auto l = lookup(v);
-        return (d[l.get()] == v) ? I{this, l} : I{this, nil};
+        auto lkp = lookup(v);
+        return (d[lkp.first.get(lkp.second).get()] == v) ? I{this, l} : I{this, nil};
     }
     constexpr CI find(T const &v) const
     {
-        auto l = lookup(v);
-        return (d[l.get()] == v) ? CI{this, l} : CI{this, nil};
+        auto lkp = lookup(v);
+        return (d[lkp.first.get(lkp.second).get()] == v) ? CI{this, l} : CI{this, nil};
     }
     constexpr bool contains(link l) const
     {
@@ -303,7 +287,8 @@ struct cobskiplist
     // TODO consider equal_range(key)
 
     // For debugging
-    void printme(std::ostream& out)
+    template <class STREAM>
+    void printme(STREAM& out)
     {
         out << "\nskiplist dump: \n";
         print(out, head);
