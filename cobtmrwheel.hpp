@@ -30,22 +30,24 @@ template <class ID, int N, class U, unsigned SPOKES> class cobtmrwheel {
     };
 
     using list   = cobtmrlist<ID, N / SPOKES * 2, U>;
-    using ispoke = cobint<0, N - 1>;
+    using ispoke = cobint<0, SPOKES - 1>;
     list   timers[SPOKES];
     ispoke next;
 
 public:
+    using tmrID = ID;
+
     struct index {
         ispoke     spoke;
-        list::link idx;
+        typename list::index idx;
     };
 
     index start(ID id, U duration)
     {
-        unsigned i = duration % SPOKES;
+        unsigned i = duration.count() % SPOKES;
         ispoke   spoke;
         spoke.be(i);
-        return { spoke, timers[spoke].start(id, duration) };
+        return { spoke, timers[spoke.get()].start(id, duration) };
     }
 
     int stop(ID id)
@@ -66,7 +68,7 @@ public:
         auto it = next;
         do {
             auto& spoke = timers[it.get()];
-            auto  rslt  = spoke.stop_first();
+            auto  rslt  = spoke.template stop_first<V>();
             if (rslt) {
                 return rslt;
             }
@@ -80,8 +82,8 @@ public:
 
     template <class F> void process_expired(U elapsed, F f)
     {
-        for (U i = 0; i < elapsed; ++i) {
-            timers[next.get()].proces_expired(U{ SPOKES }, f);
+        for (unsigned i = 0; i < elapsed.count(); ++i) {
+            timers[next.get()].process_expired(U{ SPOKES }, f);
             if (!next.advance()) {
                 next = cobic<0>;
             }

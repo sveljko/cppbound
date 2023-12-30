@@ -16,6 +16,7 @@ template <class ID, int N, class U> class cobtmrlist {
     struct elem {
         ID id;
         U  remaining;
+        elem() {}
         elem(ID id_)
             : id(id_)
         {
@@ -31,7 +32,8 @@ template <class ID, int N, class U> class cobtmrlist {
     coblist<elem, N> timers;
 
 public:
-    using index = coblist<elem, N>::link;
+    using tmrID = ID;
+    using index = typename coblist<elem, N>::link;
 
     index start(ID id, U duration)
     {
@@ -65,7 +67,7 @@ public:
             auto tmr = timers.get(it);
             auto fwd = timers.fwd(it);
             if (fwd != timers.lend()) {
-                auto next = timers.get(next);
+                auto next = timers.get(fwd);
                 next.remaining += tmr.remaining;
                 timers.set(fwd, next);
             }
@@ -80,9 +82,9 @@ public:
         if (timers.empty()) {
             return {};
         }
-        ID rslt = timers.get(timers.lhead());
-        stop(timers.lhead);
-        return rslt;
+        auto e = timers.get(timers.lfront());
+        stop(timers.lfront());
+        return e.id;
     }
 
     template <class F> void process_expired(U elapsed, F f)

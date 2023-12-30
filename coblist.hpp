@@ -265,7 +265,7 @@ struct coblist {
         vacant = next.get(vacant_idx);
 
         index prev_idx;
-        prev_idx.be(bck(pos.l));
+        prev_idx.be(bck(pos.l).get());
         next.set(prev_idx, vacant_idx);
         next.set(vacant_idx, pos.l);
         prev.set(vacant_idx, prev_idx);
@@ -431,8 +431,8 @@ struct coblist {
         return d[l.get()];
     }
 
-    constexpr void set(link l, T const& t) const {
-        return d[l.get()] = t;
+    constexpr void set(link l, T const& t) {
+        d[l.get()] = t;
     }
 
 private:

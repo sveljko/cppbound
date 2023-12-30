@@ -1,3 +1,11 @@
+# Identifying a timer
+
+A timer is identified by an `ID`, which is type a template parameter
+for all timer classes. This type is assumed to have value-semantics.
+So, a copy of a given ID will be kept with an active/running timer,
+thus take care to not have an extremely large ID.
+
+
 # Start a timer
 
 ```
@@ -22,13 +30,18 @@ specified way to check an index for validity by the user.
 int stop(ID id);
 ```
 
-Stops a timer with the ID `id`.
+Stops a running/active timer that has ID of `id`.
 
 If a timer is found and stopped succesfully, returns 0; or -1
 otherwise.
 
-If two timers are active with this same ID, it is not specified which
-one will be stopped.
+If two or more timers timers are active with this same ID, it is not
+specified which one will be stopped (but _one_ of them _will_ be
+stopped).
+
+In general, timers that are to expire sooner will be check before the
+ones that are later to expire, but there is no specified order of
+checking timers for the given ID.
 
 This is slower than stopping by index, but safe.
 
