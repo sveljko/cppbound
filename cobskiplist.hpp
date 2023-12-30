@@ -258,12 +258,12 @@ struct cobskiplist
     constexpr I find(T const &v)
     {
         auto lkp = lookup(v);
-        return (d[lkp.first.get(lkp.second).get()] == v) ? I{this, l} : I{this, nil};
+        return (d[lkp.first.get(lkp.second).get()] == v) ? I{this, lkp} : I{this, nil};
     }
     constexpr CI find(T const &v) const
     {
         auto lkp = lookup(v);
-        return (d[lkp.first.get(lkp.second).get()] == v) ? CI{this, l} : CI{this, nil};
+        return (d[lkp.first.get(lkp.second).get()] == v) ? CI{this, lkp} : CI{this, nil};
     }
     constexpr bool contains(link l) const
     {
