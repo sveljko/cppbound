@@ -22,23 +22,23 @@ template <class T, int M, int N> struct cobmatrix {
     using row    = cobi<int, 0, M - 1>;
     using column = cobi<int, 0, N - 1>;
     struct index {
-        row    row;
-        column column;
+        row    irow;
+        column icolumn;
     };
 
     constexpr bool     empty() const noexcept { return false; }
     constexpr unsigned size() const noexcept { return M * N; }
     constexpr unsigned max_size() const noexcept { return M * N; }
 
-    constexpr T get(index i) const { return d[i.row.get()][i.column.get()]; }
+    constexpr T get(index i) const { return d[i.irow.get()][i.icolumn.get()]; }
     constexpr T set(index i, T const& t)
     {
-        return d[i.row.get()][i.column.get()] = t;
+        return d[i.irow.get()][i.icolumn.get()] = t;
     }
     constexpr bool maybe_set(int m, int n, T const& t)
     {
         index idx;
-        if (idx.row.be(m) && idx.column.be(n)) {
+        if (idx.irow.be(m) && idx.icolumn.be(n)) {
             d[m][n] = t;
             return true;
         }
@@ -47,12 +47,12 @@ template <class T, int M, int N> struct cobmatrix {
     template <class V, class U = T>
     constexpr std::enable_if_t<std::is_class_v<U>, V> get(index i, V U::*m) const
     {
-        return d[i.row.get()][i.column.get()].*m;
+        return d[i.irow.get()][i.icolumn.get()].*m;
     }
     template <class V, class U = T>
     constexpr std::enable_if_t<std::is_class_v<U>, V> set(index i, V U::*m, V const& v)
     {
-        return d[i.row.get()][i.column.get()].*m = v;
+        return d[i.irow.get()][i.icolumn.get()].*m = v;
     }
 
     void fill(T const& v)
@@ -104,7 +104,7 @@ template <class T, int M, int N> struct cobmatrix {
         I& operator++()
         {
             if (row - r->d < M) {
-                if (++p - row == N) {
+                if (++p - *row == N) {
                     ++row;
                     p = *row;
                 }
@@ -113,11 +113,14 @@ template <class T, int M, int N> struct cobmatrix {
         }
         I& operator--()
         {
-            if (row > r->d) {
-                if (p == *row) {
+            if (p == *row) {
+                if (row > r->d) {
                     --row;
-                    p = row[N - 1];
+                    p = (*row) + (N - 1);
                 }
+            }
+            else {
+                --p;
             }
             return *this;
         }
@@ -156,9 +159,9 @@ template <class T, int M, int N> struct cobmatrix {
         friend struct cobmatrix;
 
     protected:
-        I(cobmatrix const* r_, T (*row_)[20], T const* p_)
+        I(cobmatrix const* r_, T (*row_)[N], T const* p_)
             : r(const_cast<cobmatrix*>(r_))
-            , row(const_cast<T(*[20])>(row_))
+            , row(const_cast<T (*)[N]>(row_))
             , p(const_cast<T*>(p_))
         {
         }
@@ -199,7 +202,7 @@ template <class T, int M, int N> struct cobmatrix {
         CI& operator++()
         {
             if (row - r->d < M) {
-                if (++p - row == N) {
+                if (++p - *row == N) {
                     ++row;
                     p = *row;
                 }
@@ -208,11 +211,14 @@ template <class T, int M, int N> struct cobmatrix {
         }
         CI& operator--()
         {
-            if (row > r->d) {
-                if (p == *row) {
+            if (p == *row) {
+                if (row > r->d) {
                     --row;
-                    p = row[N - 1];
+                    p = (*row) + (N - 1);
                 }
+            }
+            else {
+                --p;
             }
             return *this;
         }

@@ -1,5 +1,6 @@
 #include "cobi.hpp"
 #include "cobarray.hpp"
+#include "cobmatrix.hpp"
 
 #include <numeric>
 
@@ -68,12 +69,14 @@ void intrange()
 
 void arrays()
 {
-    cobarray<int, 3> a;
+    cobarray<int, 5> a;
 
     // a.get(cobic<6>);
     a.set(cobic<0>, 5);
     a.set(cobic<1>, 1);
     a.set(cobic<2>, 8);
+    a.set(cobic<3>, 3);
+    a.set(cobic<4>, 2);
     for (auto& x: a) {
         std::cout << x << " ";
     }
@@ -110,12 +113,48 @@ void arrange()
 }
 
 
+void matrix()
+{
+    std::cout << "\nEnter the Matrix\n";
+  
+    cobmatrix<int, 3, 2> m;
+
+    // m.get({cobic<4>, cobic<0>);
+    // m.get({cobic<0>, cobic<3>);
+    m.set({cobic<0>,cobic<0>}, 5);
+    m.set({cobic<0>,cobic<1>}, 1);
+    m.set({cobic<1>,cobic<0>}, 6);
+    m.set({cobic<1>,cobic<1>}, 2);
+    m.set({cobic<2>,cobic<0>}, 4);
+    m.set({cobic<2>,cobic<1>}, 3);
+    for (auto& x: m) {
+        std::cout << x << " ";
+    }
+    std::cout << "\n";
+
+    std::sort(m.begin(), m.end());
+    for (auto& x: m) {
+        std::cout << x << " ";
+    }
+    std::cout << std::endl;
+    
+    struct S {
+        int i;
+        float f;
+    };
+    cobmatrix<S, 2, 2> sm;
+    sm.set({cobic<0>, cobic<0>}, &S::f, 2.0f);
+    assert(2.0 == sm.get({cobic<0>,cobic<0>}, &S::f));
+}
+
+
 int main()
 {
     ints();
     intrange();
     arrays();
     arrange();
+    matrix();
 
     return 0;
 }
