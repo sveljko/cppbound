@@ -73,7 +73,7 @@ a debug mode should be available that catches such errors).
 # Process expired timers
 
 ```cpp
-    template <class F> void process_expired(U elapsed, F f)
+template <class F> void process_expired(U elapsed, F f)
 ```
 
 Will call `f` with the ID of all timers that expired since the last
@@ -104,10 +104,10 @@ any class that conforms to that interface in as much as we use it.
 Example:
 
 ```cpp
-	auto id = queue.stop_first<std::optional>();
-	if (id.has_value()) {
-	    process(*id);
-	}
+    auto id = queue.stop_first<std::optional>();
+    if (id.has_value()) {
+        process(*id);
+    }
 ```
 
 For example, if we just want to stop the first timer if there is one
@@ -136,15 +136,15 @@ actually "nullified", it is not removed from the list.
 For this to work correctly the nullifier has to obey a contract:
 
 ```cpp
-    class nulify {
-	    bool operator()(ID& id) {
-		   if (id.valid()) {
-		       id.invalidate();
-		       return true;
-		   }
-		   return false;
-		}
-	};
+class nulify {
+    bool operator()(ID& id) {
+        if (id.valid()) {
+            id.invalidate();
+            return true;
+        }
+        return false;
+    }
+};
 ```
 
 Of course, `nulify` does not have to be implemented in exactly that
