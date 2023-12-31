@@ -140,7 +140,7 @@ For this to work correctly the nullifier has to obey a contract:
 	    bool operator()(ID& id) {
 		   if (id.valid()) {
 		       id.invalidate();
-			   return true;
+		       return true;
 		   }
 		   return false;
 		}
@@ -148,8 +148,12 @@ For this to work correctly the nullifier has to obey a contract:
 ```
 
 Of course, `nulify` does not have to be implemented in exactly that
-way, but, it's the "canonical" way to do it. It's up to the user to
-provide the `valid()` and `invalidate()` functions (which need not be
-named like that, not even be actual functions). Commonly, they check
-and set some special value, for example `-1` for integers, `NaN` for
-floating point, `NUL` character, etc.
+way, but, it's the "canonical" way to do it. But, the function object
+should check if the ID is valid and only then invalidate and return
+`true`.  If the ID is already invalid, just return `false`.
+
+It's up to the user to provide the `valid()` and `invalidate()`
+functions (which need not be named like that, not even be actual
+functions). Commonly, they check and set some special value, for
+example `-1` for integers, `NaN` for floating point, `NUL` character,
+etc.
