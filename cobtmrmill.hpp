@@ -106,6 +106,7 @@ public:
                             return rslt;
                         }
                     }
+		    ispoke = cobic<0>;
                 }
             } while (ispoke != next.get(lvl));
         } while (lvl.advance());

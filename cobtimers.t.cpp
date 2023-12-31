@@ -22,8 +22,8 @@ template <class TMR> void basic(TMR& tmr)
     tmr.start(0, 10ms);
     tmr.start(1, 20ms);
     tmr.start(2, 30ms);
-    auto idx = tmr.start(3, 40ms);
-    tmr.start(4, 50ms);
+    auto idx = tmr.start(3, 100ms);
+    tmr.start(4, 250ms);
 
     assert(-1 == tmr.stop(333));
     assert(0 == tmr.stop(1));
@@ -49,13 +49,13 @@ template <class TMR> void basic(TMR& tmr)
     expired.clear();
 
     tmr.stop(idx);
-    tmr.process_expired(10ms, count);
+    tmr.process_expired(100ms, count);
     assert(expired.empty());
 
     auto n = tmr.template stop_first<std::optional>();
     assert(n.has_value());
     assert(4 == *n);
-    tmr.process_expired(10ms, count);
+    tmr.process_expired(100ms, count);
     assert(expired.empty());
 }
 
