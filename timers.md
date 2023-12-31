@@ -8,7 +8,7 @@ thus take care to not have an extremely large ID.
 
 # Start a timer
 
-```
+```cpp
 index start(ID id, U duration);
 ```
 
@@ -26,7 +26,7 @@ specified way to check an index for validity by the user.
 
 # Stop a timer by ID
 
-```
+```cpp
 int stop(ID id);
 ```
 
@@ -48,7 +48,7 @@ This is slower than stopping by index, but safe.
 
 # Stop a timer by index
 
-```
+```cpp
 void stop(index it);
 ```
 
@@ -72,7 +72,7 @@ a debug mode should be available that catches such errors).
 
 # Process expired timers
 
-```
+```cpp
     template <class F> void process_expired(U elapsed, F f)
 ```
 
@@ -90,7 +90,7 @@ timer and ignore its expiry.
 
 # Stop (and get) the next timer to expire
 
-```
+```cpp
 template <template <class> class V> V<ID> stop_first()
 ```
 
@@ -103,7 +103,7 @@ any class that conforms to that interface in as much as we use it.
 
 Example:
 
-```
+```cpp
 	auto id = queue.stop_first<std::optional>();
 	if (id.has_value()) {
 	    process(*id);
@@ -113,7 +113,7 @@ Example:
 For example, if we just want to stop the first timer if there is one
 and don't care about its ID, we can:
 	
-```
+```cpp
     template <class U> struct ignore {
         ignore() {}
         ignore(U const&) {}
@@ -135,7 +135,7 @@ actually "nullified", it is not removed from the list.
 
 For this to work correctly the nullifier has to obey a contract:
 
-```
+```cpp
     class nulify {
 	    bool operator()(ID& id) {
 		   if (id.valid()) {
@@ -148,12 +148,11 @@ For this to work correctly the nullifier has to obey a contract:
 ```
 
 Of course, `nulify` does not have to be implemented in exactly that
-way, but, it's the "canonical" way to do it. But, the function object
-should check if the ID is valid and only then invalidate and return
-`true`.  If the ID is already invalid, just return `false`.
+way, but it's the "canonical" way to do it. The function object should
+check if the ID is valid and only then invalidate and return `true`.
+If the ID is already invalid, just return `false`.
 
 It's up to the user to provide the `valid()` and `invalidate()`
 functions (which need not be named like that, not even be actual
-functions). Commonly, they check and set some special value, for
-example `-1` for integers, `NaN` for floating point, `NUL` character,
-etc.
+functions). Commonly, they check and set some special value, like `-1`
+for integers, `NaN` for floating point, `NUL` character, etc.
