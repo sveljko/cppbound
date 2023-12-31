@@ -597,11 +597,11 @@ more timers with the same ID and then stop by that same ID, there
 are no guarantees which of the two will be stopped.
 
 Also, there is no "garbage collection" here. If a timer expires and
-then you stop it by index, there's no telling what will happen.  If
-there is a new timer started with the same index, you will stop that
-new timer rather than "your own". If no timer is started currently,
-there's a chance you'll get a corrupted list. So, do _not_ stop by
-index unless you're sure the timer is still running.
+then you stop it by index, it will not be ignored.  If there is a new
+timer started with the same index, you will stop that new timer rather
+than "your own". If no timer is started currently, there's a chance
+you'll get a corrupted list. So, do _not_ stop by index unless you're
+sure the timer is still running.
 
 If you push a timer expiry to some event queue, then there is a chance
 user might try to stop a timer after it's removed from the timer

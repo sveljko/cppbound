@@ -125,3 +125,31 @@ and don't care about its ID, we can:
 As you can see, this illustrates the "concept" that we use - we need a
 default constructor to mean "no value" and a constructor that accepts
 the `ID` and saves it, indicating "has value". 
+
+
+# Nulifier - for lean timers
+
+Lean timers reduce memory footprint by using a "nulifier" function
+object that invalidates a timer ID. So, a timer that is cancelled is
+actually "nullified", it is not removed from the list.
+
+For this to work correctly the nullifier has to obey a contract:
+
+```
+    class nulify {
+	    bool operator()(ID& id) {
+		   if (id.valid()) {
+		       id.invalidate();
+			   return true;
+		   }
+		   return false;
+		}
+	};
+```
+
+Of course, `nulify` does not have to be implemented in exactly that
+way, but, it's the "canonical" way to do it. It's up to the user to
+provide the `valid()` and `invalidate()` functions (which need not be
+named like that, not even be actual functions). Commonly, they check
+and set some special value, for example `-1` for integers, `NaN` for
+floating point, `NUL` character, etc.

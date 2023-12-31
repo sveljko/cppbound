@@ -60,9 +60,18 @@ template <class TMR> void basic(TMR& tmr)
 }
 
 
-    struct nulify {
-        void operator()(int& id) { id = -1; }
-    };
+struct nulify {
+    bool operator()(int& id)
+    {
+        if (id != -1) {
+            id = -1;
+            return true;
+        }
+        else {
+            return false;
+        }
+    }
+};
 
 void basic()
 {

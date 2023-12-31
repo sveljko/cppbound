@@ -66,7 +66,7 @@ public:
     constexpr index start(ID id, U duration)
     {
         index i = spoke_from_duration(duration);
-        if (spokepos::greatest() != i.idx) {
+        if (i.valid()) {
             auto& spoke = timers[i.lvl.get()][i.ispoke.get()];
             auto  pos   = active.get({ i.lvl, i.ispoke });
             if (spoke.maybe_set(pos, id)) {
@@ -99,7 +99,7 @@ public:
     {
         if (it.valid()) {
             NULIFY nlf;
-            auto   p = timers[it.lvl.get()][it.ispoke.get()].begin() + it.idx.get();
+            auto p = timers[it.lvl.get()][it.ispoke.get()].begin() + it.idx.get();
             nlf(*p);
         }
     }
@@ -121,13 +121,15 @@ public:
                     auto next_lvl = lvl;
                     if (next_lvl.advance()) {
                         auto nxt_lvl_idx = next.get(next_lvl);
-                        auto& nxtlist = timers[next_lvl.get()][nxt_lvl_idx.get()];
                         if (active.get({ next_lvl, nxt_lvl_idx }) > 0) {
+                            auto& nxtlst =
+                                timers[next_lvl.get()][nxt_lvl_idx.get()];
                             NULIFY nlf;
-                            auto   p    = nxtlist.begin();
+                            auto   p    = nxtlst.begin();
                             ID     rslt = *p;
-                            nlf(*p);
-                            return rslt;
+                            if (nlf(*p)) {
+			        return rslt;
+			    }
                         }
                     }
                 }
@@ -142,10 +144,10 @@ public:
             level lvl;
             do {
                 auto ispoke = next.get(lvl);
-		auto p = timers[lvl.get()][ispoke.get()].begin();
-                for (unsigned j = 0; j < active.get({lvl,ispoke}); ++j) {
+                auto p      = timers[lvl.get()][ispoke.get()].begin();
+                for (unsigned j = 0; j < active.get({ lvl, ispoke }); ++j) {
                     f(*p);
-		    ++p;
+                    ++p;
                 }
                 active.set({ lvl, ispoke }, 0);
 
