@@ -3,8 +3,8 @@
  * License: MIT (see LICENSE)
  */
 
-#if !defined(INC_COBTMRMILL)
-#define INC_COBTMRMILL
+#if !defined(INC_COBTMRLEANMILL)
+#define INC_COBTMRLEANMILL
 
 
 #include "cobarray.hpp"
@@ -19,16 +19,18 @@ class cobtmrleanmill {
 
     static constexpr auto spokedim = N / (LVL * DIM) + 1;
 
-    using level     = cobint<0, LVL - 1>;
-    using lvlindex  = cobint<0, DIM - 1>;
-    using spoke     = cobarray<ID, spokedim>;
-    using spokespos = cobint<0, spokedim>;
+    using level    = cobint<0, LVL - 1>;
+    using lvlindex = cobint<0, DIM - 1>;
+    using spoke    = cobarray<ID, spokedim>;
+    using spokepos = cobint<0, spokedim>;
 
     spoke                         timers[LVL][DIM];
     cobmatrix<unsigned, LVL, DIM> active;
     cobarray<lvlindex, LVL>       next;
 
 public:
+    using tmrID = ID;
+
     cobtmrleanmill()
     {
         active.fill(0);
@@ -42,16 +44,18 @@ public:
         lvlindex ispoke;
         spokepos idx;
 
-        constexpr bool valid(index i) const { return i.idx != idx.greatest(); }
+        constexpr bool valid() const { return idx != idx.greatest(); }
     };
 
     constexpr index spoke_from_duration(U duration)
     {
         level    lvl;
-        unsigned d = duration;
+        unsigned d = duration.count();
         do {
             lvlindex idx;
             if (idx.be(d)) {
+                d = (d + next.get(lvl).get()) % (idx.greatest().get() + 1);
+                idx.be(d);
                 return { lvl, idx, cobic<0> };
             }
             d = d / DIM;
@@ -61,8 +65,8 @@ public:
 
     constexpr index start(ID id, U duration)
     {
-        index i = index_from_duration(U);
-        if (spoke::nil != i.idx) {
+        index i = spoke_from_duration(duration);
+        if (spokepos::greatest() != i.idx) {
             auto& spoke = timers[i.lvl.get()][i.ispoke.get()];
             auto  pos   = active.get({ i.lvl, i.ispoke });
             if (spoke.maybe_set(pos, id)) {
@@ -76,18 +80,17 @@ public:
     {
         level lvl;
         do {
-            spoke spoke;
+            lvlindex ispoke;
             do {
-	      for (unsigned i = 0; i < active.get({lvl, spoke}); ++i) {
+                for (unsigned i = 0; i < active.get({ lvl, ispoke }); ++i) {
                     NULIFY nlf;
-                    auto* p = timers[it.lvl.get()][it.ispoke.get()].begin() + i;
+                    auto   p = timers[lvl.get()][ispoke.get()].begin() + i;
                     if (*p == id) {
-
                         nlf(*p);
                         return 0;
                     }
                 }
-            } while (spoke.advance());
+            } while (ispoke.advance());
         } while (lvl.advance());
         return -1;
     }
@@ -96,7 +99,7 @@ public:
     {
         if (it.valid()) {
             NULIFY nlf;
-            auto*  p = timers[it.lvl.get()][it.ispoke.get()].begin() + it.idx;
+            auto   p = timers[it.lvl.get()][it.ispoke.get()].begin() + it.idx.get();
             nlf(*p);
         }
     }
@@ -107,46 +110,47 @@ public:
         do {
             auto ispoke = next.get(lvl);
             do {
-                auto& list = timers[lvl.get()][ispoke.get()];
-                if (active.get({lvl, ispoke}) > 0) {
+                if (active.get({ lvl, ispoke }) > 0) {
                     NULIFY nlf;
-                    auto*  p    = timers[lvl.get()][ispoke.get()].begin();
+                    auto   p    = timers[lvl.get()][ispoke.get()].begin();
                     ID     rslt = *p;
                     nlf(*p);
                     return rslt;
                 }
                 if (!ispoke.advance()) {
-                    it            = cobic<0>;
                     auto next_lvl = lvl;
                     if (next_lvl.advance()) {
                         auto nxt_lvl_idx = next.get(next_lvl);
                         auto& nxtlist = timers[next_lvl.get()][nxt_lvl_idx.get()];
-                        if (active.get({next_lvl, nxt_lvl_idx)) > 0) {
+                        if (active.get({ next_lvl, nxt_lvl_idx }) > 0) {
                             NULIFY nlf;
-                            auto*  p    = nxtlist.begin();
+                            auto   p    = nxtlist.begin();
                             ID     rslt = *p;
                             nlf(*p);
                             return rslt;
                         }
                     }
                 }
-            } while (ispoke != next.get());
+            } while (ispoke != next.get(lvl));
         } while (lvl.advance());
         return {};
     }
 
     template <class F> void process_expired(U elapsed, F f)
     {
-        for (U i = 0; i < elapsed; ++i) {
+        for (U i{ 0 }; i < elapsed; ++i) {
             level lvl;
             do {
                 auto ispoke = next.get(lvl);
-                for (auto cons& id : timers[lvl.get()][ispoke.get()]) {
-                    f(id);
+		auto p = timers[lvl.get()][ispoke.get()].begin();
+                for (unsigned j = 0; j < active.get({lvl,ispoke}); ++j) {
+                    f(*p);
+		    ++p;
                 }
-                active.set({lvl, ispoke.get}, 0);
+                active.set({ lvl, ispoke }, 0);
 
                 if (ispoke.advance()) {
+                    next.set(lvl, ispoke);
                     break;
                 }
                 next.set(lvl, cobic<0>);
@@ -157,4 +161,4 @@ public:
     // std::optional<ID> expired(U proteklo) {}
 };
 
-#endif // define      INC_COBTMRWHEEL
+#endif // define      INC_COBTMRLEANWHEEL

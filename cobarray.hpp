@@ -94,26 +94,22 @@ struct cobarray {
             return *this;
         }
         I operator+(difference_type x) const {
-            if (p + x > r->d) {
-                if (p + x < r->d + N) {
-                    return { r, p + x };
-                }
+            if (p + x < r->d + N) {
+                return { r, p + x };
             }
             return { r, r->d + N };
         }
         I operator+=(difference_type x) {
-            return (*this) + x;
+            return *this = (*this) + x;
         }
         I operator-(difference_type x) const {
-            if (p - x > r->d) {
-                if (p - x < r->d + N) {
-                    return { r, p - x };
-                }
+            if (p - x >= r->d) {
+	        return { r, p - x };
             }
             return { r, r->d + N };
         }
         I operator-=(difference_type x) {
-            return (*this) - x;
+            return *this = (*this) - x;
         }
         difference_type operator-(I const& x) const {
             return p - x.p;
@@ -169,26 +165,22 @@ struct cobarray {
             return *this;
         }
         CI operator+(difference_type x) const {
-            if (p + x > r->d) {
-                if (p + x < r->d + N) {
-                    return { r, p + x };
-                }
+            if (p + x < r->d + N) {
+                return { r, p + x };
             }
             return { r, r->d + N };
         }
         CI operator+=(difference_type x) {
-            return (*this) + x;
+            return *this = (*this) + x;
         }
         CI operator-(difference_type x) const {
-            if (p - x > r->d) {
-                if (p - x < r->d + N) {
-                    return { r, p - x };
-                }
+            if (p - x >= r->d) {
+                return { r, p - x };
             }
             return { r, r->d + N };
         }
         CI operator-=(difference_type x) {
-            return (*this) - x;
+            return *this = (*this) - x;
         }
         difference_type operator-(CI const& x) const {
             return p - x.p;
