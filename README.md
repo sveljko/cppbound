@@ -25,6 +25,12 @@ There are:
   algorithms or implicitly in range-for, and you should be good.
 * Dimension bound matrices - two dimensional arrays. Needed to avoid copying
   whole rows on accessing elements.
+* Pointers that are never null(ptr). We call them `fullptr<T>`. While there are
+  similar implementations that check that pointer is not `nullptr` at runtime,
+  here we prevent constructing a `fullptr<>` from a pointer that is `nullptr`. 
+  While that prevention is done at runtime, the `fullptr<>` is known at compile
+  time to _never_ be null. They have no notion of ownership and you can delete
+  the "underlying" pointer if you wish.
 * Capacity bound lists. Interface is similar to `std::list`/`std::forward_list`, 
   but, their capacity is fixed at compile time. So, inserting can fail (no more 
   room). Also, the "pool" of elements is allocated in an array "up front", 
