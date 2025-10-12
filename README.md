@@ -31,6 +31,8 @@ There are:
   While that prevention is done at runtime, the `fullptr<>` is known at compile
   time to _never_ be null. They have no notion of ownership and you can delete
   the "underlying" pointer if you wish.
+* An optional value with no unsafe access. We call it `perhaps<T>` and it's like
+  `std::optional<>` with just the "monadic" and other safe functions.
 * Capacity bound lists. Interface is similar to `std::list`/`std::forward_list`, 
   but, their capacity is fixed at compile time. So, inserting can fail (no more 
   room). Also, the "pool" of elements is allocated in an array "up front", 

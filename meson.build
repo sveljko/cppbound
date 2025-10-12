@@ -17,3 +17,4 @@ test('cobfwdlist_test', executable('cobfwdlist.t', ['cobfwdlist.t.cpp'], depende
 test('cobskiplist_test', executable('cobskiplist.t', ['cobskiplist.t.cpp'], dependencies: [cppbound_dep]))
 test('cobtimers_test', executable('cobtimers.t', ['cobtimers.t.cpp'], dependencies: [cppbound_dep]))
 test('nonullptr_test', executable('nonullptr.t', ['nonullptr.t.cpp'], dependencies: [cppbound_dep]))
+test('perhaps_test', executable('perhaps.t', ['perhaps.t.cpp'], dependencies: [cppbound_dep]))
