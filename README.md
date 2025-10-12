@@ -32,7 +32,19 @@ There are:
   time to _never_ be null. They have no notion of ownership and you can delete
   the "underlying" pointer if you wish.
 * An optional value with no unsafe access. We call it `perhaps<T>` and it's like
-  `std::optional<>` with just the "monadic" and other safe functions.
+  `std::optional<>` with just the "monadic" and other safe functions. It's also
+  much simpler than usual "lite" optional types. which means faster compilation
+  but potentially more edge cases. We also do not consider returnun something
+  other than `perhaps<T>` from the function passed to `and_then()` and `or_else()`,
+  as an error, though if you do, you obviously won't have the "monadic" behaviour
+  in that case. But, it's convenient - see `join` in `perhaps.t.cpp`.
+* A safe pointer, which can be `nullptr`, but if it is, it cannot be accessed.
+  We call it `optptr` (optional pointer, of sorts).
+  It's similar to `perhaps<fullptr<T>>`, but it doesn't need a separate boolean
+  indicator to see if there is a valid pointer, but uses the `nullptr` as a
+  sentinel value. That is, it takes as much memory as `T*`. It's also much simpler
+  which means faster compilation, nicer compiler error messages and less potential
+  edge cases in use.
 * Capacity bound lists. Interface is similar to `std::list`/`std::forward_list`, 
   but, their capacity is fixed at compile time. So, inserting can fail (no more 
   room). Also, the "pool" of elements is allocated in an array "up front", 

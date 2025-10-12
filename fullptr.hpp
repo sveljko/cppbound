@@ -2,7 +2,7 @@
 #define INC_fullptr
 
 
-#include <optional>
+#include "perhaps.hpp"
 
 
 template<class T> struct fullptr {
@@ -36,8 +36,8 @@ template <template <class> class V, class T> inline V<fullptr<T>> make_fullptr(T
     return fullptr<T>::template make<V>(p);
 }
 
-template <class T> inline std::optional<fullptr<T>> make_fullptr(T* p) {
-    return fullptr<T>::template make<std::optional>(p);
+template <class T> inline perhaphs<fullptr<T>> make_fullptr(T* p) {
+    return fullptr<T>::template make<perhaps>(p);
 }
 
 
