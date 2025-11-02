@@ -27,8 +27,8 @@ struct cobarray {
         taken(taken&&) = delete;
         taken& operator=(taken&&) = delete;
 
-        constexpr T const* operator->() const { return &t_;}
-        constexpr T* operator->() { return &t_; }
+        constexpr T const* operator->() const&& { return &t_;}
+        constexpr T* operator->() && { return &t_; }
 
     private:
         T& t_;

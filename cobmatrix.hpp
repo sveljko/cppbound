@@ -42,8 +42,8 @@ template <class T, int M, int N> struct cobmatrix {
     constexpr unsigned size() const noexcept { return M * N; }
     constexpr unsigned max_size() const noexcept { return M * N; }
 
-    constexpr taken grab(index i) const { return d[i.irow.get()][i.icolumn.get()]; }
-    constexpr taken grab(index i) { return d[i.irow.get()][i.icolumn.get()]; }
+    constexpr taken grab(index i) const&& { return d[i.irow.get()][i.icolumn.get()]; }
+    constexpr taken grab(index i) && { return d[i.irow.get()][i.icolumn.get()]; }
     constexpr T get(index i) const { return d[i.irow.get()][i.icolumn.get()]; }
     constexpr T set(index i, T const& t)
     {
