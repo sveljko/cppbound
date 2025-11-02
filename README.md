@@ -444,21 +444,12 @@ certain situations.
 
 ### Most integers are ints
 
-For those, we provide a shortcut:
-
-```cpp
-    cobint<0,5>
-```
-
-is the same as
-
-```cpp
-    cobi<int, 0,5>
-```
+For those, we provide a shortcut: `cobint<0,5>` is the same as `cobi<int, 0,5>`.
 
 This is needed because we can't have `int` be a default type and
 define a range (at best we could have the default range of `0,0` for the default `int` type). 
-For constants, there's `cobic`, which can save a few strokes  and look nicer in expressions:
+For constants, there's `cobic`, which can save a few keystrokes and looks nicer in expressions
+(it's similar to `std::integral_constant<>`, but again saves keystrokes):
 
 ```cpp
     cobint<0,5> x;
@@ -472,70 +463,67 @@ For constants, there's `cobic`, which can save a few strokes  and look nicer in 
 Other than using Range Bound Integers for the index, thus knowing at compile time that there's no
 out of array bounds access, we also don't follow the STL interface "to the letter".
 
-We don't give the reference to any member - you get copies. While this may be a performance
-penalty it also means that there's no means to abuse the provided reference. This will
-*not* compile:
+We don't give the reference to any member and provide three access interfaces:
+
+* `get(index)` returns a _copy_ at the given index. While this may be a performance
+penalty it is also safe against a common `std::array<>` problem (simplified
+for illustration here):
 
 ```cpp
-    cobarray<int, 3> a;
-    int& r = a.get(cobic<0>); // cannot bind temp to non-const reference
-```
-
-While you can find your way into Undefined Behavior with, say, `std::array<>`:
-
-```cpp
-    int& f() {
+    class X {
+        int& f() {
+            return a[1];
+        }
         std::array<int, 3> a;
-        return a[1];
-    }
-    int& r = f();
+    };
+
+    int& r = X().f();
     r = 5; // !!! writing to a dangling reference
 ```
 
-Sure, for such obvious cases your compiler might produce a warning, but for real-life
-problems, you probably won't be so lucky. Also, errors are better than warnings.
+   Also, for structs/classes we provide a helper `getset(index, data-member-pointer)`
+   which will get only the given member. It's a little cumbersome, but works well.
+* `set(index, value)` will set the element to the given value, which implies a copy and again
+   could be a performance penalty, and we also provide `set(index, value, data-member-poiinter)`.
+* `grab(index)` returns a _pr-only wrapper_ with an overloaded `operator->`. You cannot get
+   its address, or even copy it. It's sole purpose is to provide a nicer, yet safe, syntax
+   for accessing or changing members of class/struct and it's unusable for scalar types.
 
-Another interesting thing is that we allocate one extra element as the "landing zone" for the
-"iterator out of bounds". So, if you push the iterator out of the bounds of the array, it will
-"sit" in the landing zone and dereferencing it will give you "something". It's not undefined,
-it's actually well defined in any particular program, we just don't care what it is (you could
-say it's "unspecified"). Unfortunately, this safety comes with an additional price of extra
-checks in the iterator.
+To illustrate:
+```cpp
+    struct S {
+        int i;
+        float f = 0.0;
+    };
+    cobarray<S, 3> as;
+    as.set(cobic<0>, &S::f, 2.0f);
+    assert(2.0 == as.get(cobic<0>, &S::f));
+    as.grab(cobic<0>)->f = 4.0;
+    assert(4.0 == as.grab(cobic<0>)->f);
+```
 
-If you need the lost speed _and_ if you're only gonna use the iterators with standard algorithms 
-and the `for` ranged loop, then it should be fine to remove the helper iterator class and just 
-use the pointers as iterators, as these should never "do the nasty".
+For safety, we allocate an extra element as the "landing zone" for the out of
+bounds iterator. If you push the iterator out of array bounds, it will "sit" in
+the landing zone and dereferencing it will give you "something" _well defined_,
+we just don't care what it is (you could say it's "unspecified"). Unfortunately,
+this safety comes with a price of extra checks in the iterator.
 
-A safe way to iterage through the array is to use a helper range iterator, like:
+A safe _and_ fast way to iterage through the array is to use a helper range iterator, like:
 
 ```cpp
     cobarray<WHATEV, DIM> a;
     for (auto i: a.irange()) {
-        a.set(i, SOMETHING);
+        a.set(i, SOME);
+        a.set(i, &WHATEV::member, THING);
+        a.grab(i)->member = THING;       // if WHATEV is a struct/class
         std::cout << a.get(i);
+        std::cout << a.grab(i)->member;  // if WHATEV is a struct/class
     }
 ```
 
 One thing, though - we don't initialize the members of the array, because arrays can be very
 big and that might be detrimental to the performance. Of course, the default constructor will
 be called for each element, so be mindful of what you put into this array.
-
-### But I have a large struct to keep in the array!
-
-Obviously, if the struct is very large, then copying it around all the time just to get/set 
-a small member implies low performance. To circumvent that, there are overloaded `get()` 
-and `set()` to be used to get set a data member. You just need to pass the pointer-to-member, 
-too. Something like:
-
-```cpp
-    struct S {
-        int i[200];
-        float f;
-    };
-    cobarray<S, 3> as;
-    as.set(cobic<0>, &S::f, 2.0f);
-    assert(2.0 == as.get(cobic<0>, &S::f));
-```
 
 
 ## Range bound lists

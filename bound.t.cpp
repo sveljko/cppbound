@@ -94,6 +94,8 @@ void arrays()
     cobarray<S, 3> as;
     as.set(cobic<0>, &S::f, 2.0f);
     assert(2.0 == as.get(cobic<0>, &S::f));
+    assert(4.0 == (as.grab(cobic<0>)->f = 4.0));
+    assert(4.0 == as.grab(cobic<0>)->f);
 }
 
 

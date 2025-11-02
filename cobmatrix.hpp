@@ -25,11 +25,25 @@ template <class T, int M, int N> struct cobmatrix {
         row    irow;
         column icolumn;
     };
+    struct taken {
+        taken(T& t) : t_(t) {}
+
+        taken(taken&&) = delete;
+        taken& operator=(taken&&) = delete;
+
+        constexpr T const* operator->() const { return &t_;}
+        constexpr T* operator->() { return &t_; }
+
+    private:
+        T& t_;
+    };
 
     constexpr bool     empty() const noexcept { return false; }
     constexpr unsigned size() const noexcept { return M * N; }
     constexpr unsigned max_size() const noexcept { return M * N; }
 
+    constexpr taken grab(index i) const { return d[i.irow.get()][i.icolumn.get()]; }
+    constexpr taken grab(index i) { return d[i.irow.get()][i.icolumn.get()]; }
     constexpr T get(index i) const { return d[i.irow.get()][i.icolumn.get()]; }
     constexpr T set(index i, T const& t)
     {

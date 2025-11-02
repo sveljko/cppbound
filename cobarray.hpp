@@ -21,16 +21,28 @@ struct cobarray {
 
     using index = cobi<int, 0, N-1>;
 
+    struct taken {
+        taken(T& t) : t_(t) {}
+
+        taken(taken&&) = delete;
+        taken& operator=(taken&&) = delete;
+
+        constexpr T const* operator->() const { return &t_;}
+        constexpr T* operator->() { return &t_; }
+
+    private:
+        T& t_;
+    };
+
     constexpr bool empty() const noexcept { return false; }
     constexpr unsigned size() const noexcept { return N; }
     constexpr unsigned max_size() const noexcept { return N; }
 
-    constexpr T get(index i) const {
-        return d[i.get()];
-    }
-    constexpr T set(index i, T const& t)  {
-        return d[i.get()] = t;
-    }
+    constexpr taken grab(index i) const { return d[i.get()]; }
+    constexpr taken grab(index i) { return d[i.get()]; }
+    constexpr T get(index i) const { return d[i.get()]; }
+    constexpr T set(index i, T const& t) { return d[i.get()] = t; }
+
     constexpr bool maybe_set(int i, T const& t)  {
         index idx;
         if (idx.be(i)) {
