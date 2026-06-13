@@ -34,15 +34,15 @@ There are:
 * An optional value with no unsafe access. We call it `perhaps<T>` and it's like
   `std::optional<>` with just the "monadic" and other safe functions. It's also
   much simpler than usual "lite" optional types. which means faster compilation
-  but potentially more edge cases. We also do not consider returnun something
+  but potentially more edge cases. We also do not consider returning something
   other than `perhaps<T>` from the function passed to `and_then()` and `or_else()`,
-  as an error, though if you do, you obviously won't have the "monadic" behaviour
-  in that case. But, it's convenient - see `join` in `perhaps.t.cpp`.
+  as an error, though if you do so, you won't get the "monadic" behaviour.
+  But it's convenient - see `join` in `perhaps.t.cpp`.
 * A safe pointer, which can be `nullptr`, but if it is, it cannot be accessed.
   We call it `optptr` (optional pointer, of sorts).
   It's similar to `perhaps<fullptr<T>>`, but it doesn't need a separate boolean
-  indicator to see if there is a valid pointer, but uses the `nullptr` as a
-  sentinel value. That is, it takes as much memory as `T*`. It's also much simpler
+  indicator to see if there is a valid pointer; it uses the `nullptr` as a
+  sentinel value. Thus, it takes as much memory as `T*`. It's also much simpler
   which means faster compilation, nicer compiler error messages and less potential
   edge cases in use.
 * Capacity bound lists. Interface is similar to `std::list`/`std::forward_list`, 
@@ -95,8 +95,8 @@ search trees are not implemented at this time. They might be added in the future
 
 Just copy the headers you need where you'd like them to be and include them.
 
-This is designed for and tested with C++17. It should work with few changes in C++14, let us
-know if you need help with that.
+This is designed for and tested with C++17. It should work with few changes in C++14, 
+let us know if you need help with that.
 
 ## Usage
 
@@ -176,7 +176,7 @@ but this is not:
 ```cpp
     cobi<int, 0, 1> x{};
     usbi y{};
-    usbi z = x + y; //!! final range is 0,6, upper bound higher than usbi's 5
+    usbi z = x + y; //!! x+y range is <0,6> and 6 > 5
 ```
 
 and this is just asking for it;
@@ -184,7 +184,7 @@ and this is just asking for it;
 ```cpp
     usbi x{};
     usbi y{};
-    usbi z = x + y; //!! final range is 0,10!
+    usbi z = x + y; //!! final range is <0,10>!
 ```
 
 This is a little strange at first, but, think about it, if `x == 5` _and_
@@ -605,18 +605,15 @@ more timers with the same ID and then stop by that same ID, there
 are no guarantees which of the two will be stopped.
 
 Also, there is no "garbage collection" here. If a timer expires and
-then you stop it by index, it will not be ignored.  If there is a new
-timer started with the same index, you will stop that new timer rather
-than "your own". If no timer is started currently, there's a chance
-you'll get a corrupted list. So, do _not_ stop by index unless you're
-sure the timer is still running.
+then you stop it by index, strange thing happen.  If there is a new
+timer started with the same index, you will stop that new timer. If 
+no timer with said index is started currently, there's a chance you
+will corrupt the timer list. Do _not_ stop a timer by index, unless 
+you are sure said timer is still running.
 
-If you push a timer expiry to some event queue, then there is a chance
-user might try to stop a timer after it's removed from the timer
-module, but still in the queue, not processed yet. There is no support
-to handle this situation, if stopping such timer is needed, user
-should have some additional map of "expired but not yet handled
-timers".
+If you push timer expiry to some event queue, then there is a chance
+user might try to stop said timer while in queue. There's no support
+for handling this situation. You need some bookeeping on your side.
 
 See [Timer Interface Spec](timers.md).
 
@@ -624,13 +621,12 @@ See [Timer Interface Spec](timers.md).
 ### Using timers as a deadline scheduler
 
 Event to be processed by a deadline can be presented by a timer that
-will expire on that deadline. The only thing that is needed is a way
-to "get the first timer to expire and cancel it", which is equivalent
-of dequeuing the next event to process from the event queue.
+will expire on that deadline. With a way to _force_ the timer at the 
+head of the list to expire, you have the equivalent of dequeuing the
+next event to process from the event queue.
 
-If a timer expires, that means its deadline was not met.
+If a timer _really_ expires, that means its deadline was not met.
 
-So, we provide an unusual "stop the first timer" which will return the
-ID of that timer, if it exists. Use that to dequeue the next event to
-process, and you'll have a deadline scheduler.
-
+What we provide is "stop the first timer" which will return the ID of
+that timer. Use that to dequeue the next event to process, and you'll 
+have a deadline scheduler.
