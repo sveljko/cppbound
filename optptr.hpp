@@ -26,16 +26,36 @@ template<class T> struct optptr {
     template<class F> constexpr auto or_else(F&& f) const { return p ? *this : std::forward<F>(f)(); }
 
     template<class F> constexpr auto and_then(F&& f) {
-        if (p)
-            return std::invoke(std::forward<F>(f), p);
-        else
-            return std::remove_cvref_t<std::invoke_result_t<F, T*>>{};
+        using ReturnType = std::invoke_result_t<F, T*>;
+        
+        if constexpr (std::is_void_v<ReturnType>) {
+            if (p) {
+                std::invoke(std::forward<F>(f), p);
+            }
+            return;
+        } 
+        else {        
+            if (p)
+                return std::invoke(std::forward<F>(f), p);
+            else
+                return std::remove_cvref_t<std::invoke_result_t<F, T*>>{};
+        }
     }
     template<class F> constexpr auto and_then(F&& f) const {
-        if (p)
-            return std::invoke(std::forward<F>(f), p);
-        else
-            return std::remove_cvref_t<std::invoke_result_t<F, T const*>>{};
+        using ReturnType = std::invoke_result_t<F, T*>;
+        
+        if constexpr (std::is_void_v<ReturnType>) {
+            if (p) {
+                std::invoke(std::forward<F>(f), p);
+            }
+            return;
+        } 
+        else {        
+            if (p)
+                return std::invoke(std::forward<F>(f), p);
+            else
+                return std::remove_cvref_t<std::invoke_result_t<F, T const*>>{};
+        }
     }
 
     constexpr void reset() { p = nullptr; }
