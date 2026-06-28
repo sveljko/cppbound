@@ -36,7 +36,7 @@ template <template <class> class V, class T> inline V<fullptr<T>> make_fullptr(T
     return fullptr<T>::template make<V>(p);
 }
 
-template <class T> inline perhaphs<fullptr<T>> make_fullptr(T* p) {
+template <class T> inline perhaps<fullptr<T>> make_fullptr(T* p) {
     return fullptr<T>::template make<perhaps>(p);
 }
 
