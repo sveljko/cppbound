@@ -7,7 +7,7 @@
 
 template<class T> struct optptr {
     constexpr optptr(T *x) : p(x) {}
-    constexpr optpr(nullptr_t) : p(nullptr) {}
+    constexpr optptr(nullptr_t) : p(nullptr) {}
 
     constexpr optptr(optptr const& x) : p(x.p) {}
     constexpr optptr(fullptr<T> const& x) : p(x.get()) {}
