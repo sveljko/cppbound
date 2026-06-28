@@ -29,13 +29,13 @@ template<class T> struct optptr {
         if (p)
             return std::invoke(std::forward<F>(f), p);
         else
-            return std::remove_cvref_t<std::invoke_result_t<F, T&>>{};
+            return std::remove_cvref_t<std::invoke_result_t<F, T*>>{};
     }
     template<class F> constexpr auto and_then(F&& f) const {
         if (p)
             return std::invoke(std::forward<F>(f), p);
         else
-            return std::remove_cvref_t<std::invoke_result_t<F, T const&>>{};
+            return std::remove_cvref_t<std::invoke_result_t<F, T const*>>{};
     }
 
     constexpr void reset() { p = nullptr; }
