@@ -10,10 +10,10 @@ template<class T> struct optptr {
     constexpr optpr(nullptr_t) : p(nullptr) {}
 
     constexpr optptr(optptr const& x) : p(x.p) {}
-    constexpr optptr(fullptr const& x) : p(x.get()) {}
+    constexpr optptr(fullptr<T> const& x) : p(x.get()) {}
 
     constexpr optptr(optptr const&& x) : p(x.p) {}
-    constexpr optptr(fullptr const&& x) : p(x.get()) {}
+    constexpr optptr(fullptr<T> const&& x) : p(x.get()) {}
 
     constexpr ~optptr() { p = nullptr; }
 
