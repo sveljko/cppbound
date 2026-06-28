@@ -38,7 +38,8 @@ template<class T> struct optptr {
             return std::remove_cvref_t<std::invoke_result_t<F, T const&>>{};
     }
 
-    void reset() { p = nullptr; }
+    constexpr void reset() { p = nullptr; }
+    constexpr auto release() { auto _ = p; p = nullptr; return _; }
 
 private:
     T* p = nullptr;
