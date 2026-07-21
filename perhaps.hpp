@@ -40,38 +40,41 @@ public:
     constexpr bool has_value() const { return has; }
 
     template <class F> constexpr auto and_then(F&& f) & {
-        if (has) {
-            return std::invoke(std::forward<F>(f), *reinterpret_cast<T*>(v));
-        }
-        else {
-            return std::remove_cvref_t<std::invoke_result_t<F, T&>>{};
+        using R = std::remove_cvref_t<std::invoke_result_t<F, T&>>;
+        if constexpr (std::is_void_v<R>) {
+            if (has) std::invoke(std::forward<F>(f), *reinterpret_cast<T*>(v));
+        } else {
+            if (has) return std::invoke(std::forward<F>(f), *reinterpret_cast<T*>(v));
+            else     return R{};
         }
     }
     template <class F> constexpr auto and_then(F&& f) const& {
-        if (has) {
-            return std::invoke(std::forward<F>(f), *reinterpret_cast<T const*>(v));
-        }
-        else {
-            return std::remove_cvref_t<std::invoke_result_t<F, const T&>>{};
+        using R = std::remove_cvref_t<std::invoke_result_t<F, const T&>>;
+        if constexpr (std::is_void_v<R>) {
+            if (has) std::invoke(std::forward<F>(f), *reinterpret_cast<T const*>(v));
+        } else {
+            if (has) return std::invoke(std::forward<F>(f), *reinterpret_cast<T const*>(v));
+            else     return R{};
         }
     }
     template <class F> constexpr auto and_then(F&& f) && {
-        if (has) {
-            return std::invoke(std::forward<F>(f), std::move(*reinterpret_cast<T*>(v)));
-        }
-        else {
-            return std::remove_cvref_t<std::invoke_result_t<F, T&>>{};
+        using R = std::remove_cvref_t<std::invoke_result_t<F, T&>>;
+        if constexpr (std::is_void_v<R>) {
+            if (has) std::invoke(std::forward<F>(f), std::move(*reinterpret_cast<T*>(v)));
+        } else {
+            if (has) return std::invoke(std::forward<F>(f), std::move(*reinterpret_cast<T*>(v)));
+            else     return R{};
         }
     }
     template <class F> constexpr auto and_then(F&& f) const&& {
-        if (has) {
-            return std::invoke(std::forward<F>(f), std::move(*reinterpret_cast<T const*>(v)));
-        }
-        else {
-            return std::remove_cvref_t<std::invoke_result_t<F, const T&>>{};
+        using R = std::remove_cvref_t<std::invoke_result_t<F, const T&>>;
+        if constexpr (std::is_void_v<R>) {
+            if (has) std::invoke(std::forward<F>(f), std::move(*reinterpret_cast<T const*>(v)));
+        } else {
+            if (has) return std::invoke(std::forward<F>(f), std::move(*reinterpret_cast<T const*>(v)));
+            else     return R{};
         }
     }
-
     template <class F> constexpr auto or_else(F&& f) const& {
         return has ? *this : std::forward<F>(f)();
     }
@@ -80,7 +83,6 @@ public:
     }
 
     template<typename F> constexpr perhaps<std::invoke_result_t<F, const T&>> transform(F&& func) const {
-        using U = std::invoke_result_t<F, const T&>;
         if (has) {
             return {std::invoke(std::forward<F>(func), *reinterpret_cast<T const*>(v))};
         }
