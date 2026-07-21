@@ -95,13 +95,15 @@ search trees are not implemented at this time. They might be added in the future
 
 Just copy the headers you need where you'd like them to be and include them.
 
-This is designed for and tested with C++17. It should work with few changes in C++14, 
-let us know if you need help with that.
+This is designed for and tested with C++20, though some headers require only
+C++17.
 
 ## Usage
 
-Should be rather simple. Look at the [examples](bound.t.cpp). Read the docs if you need more
-info. Since this is a header-only library, you only need to set the include directories.
+Should be rather simple. Look at the [bounds test](bound.t.cpp) and
+other tests for examples. Read the docs if you need more info. Since
+this is a header-only library, you only need to set the include
+directories.
 
 If you're using the `meson` build tool, there's a `meson.build` so that you can use this as
 a meson subproject, which should take care of include directories.
@@ -110,7 +112,7 @@ a meson subproject, which should take care of include directories.
 
 Using templates and constant expressions, check for bounds at compile time.
 
-To the extent possible, make it so that the generated code is essentially the
+To the extent possible, make it so that the compiled code is essentially the
 same as the code you would get if you wrote "optimal safe code", that is code
 with the least needed amount of checks.
 
