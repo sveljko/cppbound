@@ -32,6 +32,6 @@ int main() {
 
     perhaps<mile> z;
     mile q;
-    z.or_else([](mile r) {return perhaps<mile>{};}).value_or(q);
+    z.or_else([] {return perhaps<mile>{};}).value_or(q);
     std::cout << z.value_or(mile{5}) << std::endl;
 }
