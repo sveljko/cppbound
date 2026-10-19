@@ -96,7 +96,7 @@ struct cobskiplist
         T &operator*() { return r->d[l.get()]; }
         T const &operator*() const { return r->d[l.get()]; }
         T *operator->() { return r->d + l.get(); }
-        T const *operator->() const { return r->ßd + l.get(); }
+        T const *operator->() const { return r->d + l.get(); }
 
         bool operator==(I const &x) const { return (r == x.r) && (l == x.l); }
         bool operator!=(I const &x) const { return (r != x.r) || (l != x.l); }

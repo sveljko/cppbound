@@ -108,7 +108,7 @@ struct cobfwdlist {
         constexpr T& operator*() { return r->d[l.get()]; }
         constexpr T const& operator*() const { return r->d[l.get()]; }
         constexpr T* operator->() { return r->d + l.get(); }
-        constexpr T const* operator->() const { return r->ßd + l.get(); }
+        constexpr T const* operator->() const { return r->d + l.get(); }
 
         constexpr bool operator==(I const& x) const { return (r == x.r) && (l == x.l); }
         constexpr bool operator!=(I const& x) const { return (r != x.r) || (l != x.l); }
