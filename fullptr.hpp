@@ -4,35 +4,45 @@
 
 #include "perhaps.hpp"
 
+#include <memory>
+#include <type_traits>
+
+template <class U> struct optptr;
+
 
 template<class T> struct fullptr {
-    template <template <class> class V> static V<fullptr> make(T* p) {
+    template <template <class> class V> static constexpr V<fullptr> make(T* p) {
         if (p) { return fullptr{p}; } else { return {}; }
     }
 
-    fullptr(fullptr const& x) : p(x.p) {}
+    // A reference always refers to an object
+    static constexpr fullptr from(T& r) { return fullptr{ std::addressof(r) }; }
 
-    fullptr(fullptr const&& x) : p(x.p) {}
+    // To a pointer to const, or to a base
+    template <class U>
+        requires std::is_convertible_v<U*, T*>
+    constexpr fullptr(fullptr<U> x) : p(x.get()) {}
 
-    ~fullptr() {}
+    constexpr bool operator==(fullptr const&) const = default;
 
-    T* get() { return p; }
-    T const* get() const { return p; }
+    constexpr T* get() { return p; }
+    constexpr T const* get() const { return p; }
 
-    T* operator->() { return p;}
-    T const* operator->() const { return p;}
+    constexpr T* operator->() { return p;}
+    constexpr T const* operator->() const { return p;}
 
-    T& operator*() { return *p;}
-    T const& operator*() const { return *p;}
+    constexpr T& operator*() { return *p;}
+    constexpr T const& operator*() const { return *p;}
 
 private:
-    fullptr(T*x) : p(x) {}
+    template <class U> friend struct optptr;
+    constexpr fullptr(T*x) : p(x) {}
     fullptr() = delete;
 
     T* p;
 };
 
-template <template <class> class V, class T> inline V<fullptr<T>> make_fullptr(T* p) {
+template <template <class> class V, class T> inline constexpr V<fullptr<T>> make_fullptr(T* p) {
     return fullptr<T>::template make<V>(p);
 }
 

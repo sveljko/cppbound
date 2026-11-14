@@ -62,12 +62,10 @@ For most timers, this will remove the timer. But, for some, which
 requira a "nullifying" function, said function would be used and it is
 the responsibility of the user to ignore the nullified timers on expiry.
 
-While this should be _very_ fast (O(1)), if no timer is active with
-this index, the outcome might corrupt the timers, so users needs to be
-sure that the timer is still active when calling this. Some timers
-might be able to check if the timer is active, and make this safe, if
-slightly slower, but this is not guaranteed for all timers (for which
-a debug mode should be available that catches such errors).
+This is _very_ fast (O(1)). If no timer is active with this index (for
+example, because it was already stopped), this does nothing, unless a
+new timer was started in the meantime and got the same slot, in which
+case that new timer is stopped.
 
 
 # Process expired timers
@@ -81,6 +79,10 @@ call of this function which is taken to have happened `elapsed` time
 ago. If none have expired, `f` will not be called even once.
 
 There may be more than one timer expired with the same `ID`.
+
+It is fine to start and stop timers from `f`. A timer is not running any
+more when `f` is called for it, so do not stop it by index from `f` (that
+index might already belong to some other timer).
 
 For timer which are nullified instead of removed on stopping, the `ID`
 passed would be that of a "nullified" timer, which is opaque to the

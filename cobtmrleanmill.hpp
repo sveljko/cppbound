@@ -8,6 +8,7 @@
 
 
 #include "cobarray.hpp"
+#include "cobhlp.hpp"
 #include "cobmatrix.hpp"
 
 
@@ -37,7 +38,7 @@ public:
         next.fill(cobic<0>);
     }
 
-    static constexpr U max_duration{ 1 << (DIM * cobhlp::log2(LVL)) };
+    static constexpr U max_duration{ cobhlp::pow(DIM, LVL) - 1 };
 
     struct index {
         level    lvl;
@@ -49,8 +50,12 @@ public:
 
     constexpr index spoke_from_duration(U duration)
     {
-        level    lvl;
-        unsigned d = duration.count();
+        level lvl;
+        // Before anything else, as the duration might not fit our integer
+        if ((duration < U{ 0 }) || (duration > max_duration)) {
+            return { lvl, cobic<0>, spokepos::greatest() };
+        }
+        unsigned d = static_cast<unsigned>(duration.count());
         do {
             lvlindex idx;
             if (idx.be(d)) {
@@ -69,8 +74,11 @@ public:
         if (i.valid()) {
             auto& spoke = timers[i.lvl.get()][i.ispoke.get()];
             auto  pos   = active.get({ i.lvl, i.ispoke });
-            if (spoke.maybe_set(pos, id)) {
+            if (i.idx.be(pos) && spoke.maybe_set(pos, id)) {
                 active.set({ i.lvl, i.ispoke }, pos + 1);
+            }
+            else {
+                i.idx = spokepos::greatest();
             }
         }
         return i;
@@ -97,7 +105,7 @@ public:
 
     void stop(index it)
     {
-        if (it.valid()) {
+        if (it.valid() && (static_cast<unsigned>(it.idx.get()) < active.get({ it.lvl, it.ispoke }))) {
             NULIFY nlf;
             auto p = timers[it.lvl.get()][it.ispoke.get()].begin() + it.idx.get();
             nlf(*p);
@@ -110,29 +118,18 @@ public:
         do {
             auto ispoke = next.get(lvl);
             do {
-                if (active.get({ lvl, ispoke }) > 0) {
-                    NULIFY nlf;
-                    auto   p    = timers[lvl.get()][ispoke.get()].begin();
-                    ID     rslt = *p;
-                    nlf(*p);
-                    return rslt;
+                if (const int pos = first_live(lvl, ispoke); pos >= 0) {
+                    return nulify_at(lvl, ispoke, pos);
                 }
                 if (!ispoke.advance()) {
                     auto next_lvl = lvl;
                     if (next_lvl.advance()) {
                         auto nxt_lvl_idx = next.get(next_lvl);
-                        if (active.get({ next_lvl, nxt_lvl_idx }) > 0) {
-                            auto& nxtlst =
-                                timers[next_lvl.get()][nxt_lvl_idx.get()];
-                            NULIFY nlf;
-                            auto   p    = nxtlst.begin();
-                            ID     rslt = *p;
-                            if (nlf(*p)) {
-			        return rslt;
-			    }
+                        if (const int pos = first_live(next_lvl, nxt_lvl_idx); pos >= 0) {
+                            return nulify_at(next_lvl, nxt_lvl_idx, pos);
                         }
                     }
-		    ispoke = cobic<0>;
+                    ispoke = cobic<0>;
                 }
             } while (ispoke != next.get(lvl));
         } while (lvl.advance());
@@ -162,6 +159,27 @@ public:
     }
 
     // std::optional<ID> expired(U proteklo) {}
+
+private:
+    // Position of the first timer in the spoke that is not nulified, or -1
+    constexpr int first_live(level lvl, lvlindex ispoke) const
+    {
+        auto p = timers[lvl.get()][ispoke.get()].begin();
+        for (unsigned i = 0; i < active.get({ lvl, ispoke }); ++i, ++p) {
+            ID id = *p;
+            if (NULIFY{}(id)) {
+                return static_cast<int>(i);
+            }
+        }
+        return -1;
+    }
+    constexpr ID nulify_at(level lvl, lvlindex ispoke, int pos)
+    {
+        auto p    = timers[lvl.get()][ispoke.get()].begin() + pos;
+        ID   rslt = *p;
+        NULIFY{}(*p);
+        return rslt;
+    }
 };
 
-#endif // define      INC_COBTMRLEANWHEEL
+#endif // define      INC_COBTMRLEANMILL

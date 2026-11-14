@@ -7,14 +7,16 @@
 #define INC_COBSKIPLIST
 
 #include "cobarray.hpp"
+#include "cobstore.hpp"
 
 #include "cobhlp.hpp"
 
-#include <random>
+#include <bit>
+#include <cstdint>
 #include <utility>    // std::pair
 
 
-template <class T, int N, class CMP = cobhlp::less<T>>
+template <class T, int N, class CMP = cobhlp::less<T>, class RNG = cobhlp::xorshift32>
 struct cobskiplist
 {
     static_assert(cobhlp::log2(N) > 2, "Skiplist too small");
@@ -37,15 +39,20 @@ struct cobskiplist
     static constexpr auto nil = cobic<N>;
     static constexpr auto surface = cobic<0>;
 
-    cobskiplist() : rng(rndev()), leveldist(0, max_level)
+    cobskiplist()
     {
         head.fill(nil);
+        used.fill(false);
         for (auto i : vacancy.irange())
         {
             vacancy.set(i, i);
         }
-        vacant = index::greatest();
+        vacant = nil;
     }
+
+    cobskiplist(cobskiplist const&) = delete;
+    cobskiplist& operator=(cobskiplist const&) = delete;
+    ~cobskiplist() { clear(); }
 
     constexpr bool empty() const noexcept { return head.get(surface) == nil; }
 
@@ -61,54 +68,6 @@ struct cobskiplist
     }
     constexpr unsigned max_size() const noexcept { return N; }
 
-    class I
-    {
-        cobskiplist *r;
-        link l;
-
-    public:
-        using value_type = T;
-        using difference_type = std::ptrdiff_t;
-        using pointer = T *;
-        using reference = T &;
-        using iterator_category = std::forward_iterator_tag;
-
-        I(I const &x) : r(x.r), l(x.l) {}
-
-        I &operator=(I &x)
-        {
-            r = x.r;
-            l = x.l;
-            return *this;
-        }
-        I &operator=(I &&x)
-        {
-            r = x.r;
-            l = x.l;
-            return *this;
-        }
-        I &operator++()
-        {
-            l = r->fwd(l);
-            return *this;
-        }
-
-        T &operator*() { return r->d[l.get()]; }
-        T const &operator*() const { return r->d[l.get()]; }
-        T *operator->() { return r->d + l.get(); }
-        T const *operator->() const { return r->d + l.get(); }
-
-        bool operator==(I const &x) const { return (r == x.r) && (l == x.l); }
-        bool operator!=(I const &x) const { return (r != x.r) || (l != x.l); }
-
-        friend struct cobskiplist;
-
-    protected:
-        I(cobskiplist const *r_, link l_) : r(const_cast<cobskiplist *>(r_)), l(l_)
-        {
-        }
-    };
-
     class CI
     {
         cobskiplist const *r;
@@ -117,42 +76,33 @@ struct cobskiplist
     public:
         using value_type = T;
         using difference_type = std::ptrdiff_t;
-        using pointer = T *;
-        using reference = T &;
+        using pointer = T const*;
+        using reference = T const&;
         using iterator_category = std::forward_iterator_tag;
 
-        CI(CI const &x) : r(x.r), l(x.l) {}
-        CI(I const &x) : r(x.r), l(x.l) {}
+        CI() : r(&nowhere()), l(nil) {}
+        CI operator++(int) { CI t = *this; ++*this; return t; }
 
-        CI &operator=(CI &x)
-        {
-            r = x.r;
-            l = x.l;
-            return *this;
-        }
-        CI &operator=(CI &&x)
-        {
-            r = x.r;
-            l = x.l;
-            return *this;
-        }
         CI &operator++()
         {
             l = r->fwd(l);
             return *this;
         }
 
-        T const &operator*() const { return r->d[l.get()]; }
-        T const *operator->() const { return r->d + l.get(); }
+        T const &operator*() const { index i; return (i.be(l.get()) && r->live(l)) ? r->store.at(i) : spot(); }
+        T const *operator->() const { return &**this; }
 
         bool operator==(CI const &x) const { return (r == x.r) && (l == x.l); }
-        bool operator!=(CI const &x) const { return (r != x.r) || (l != x.l); }
 
         friend struct cobskiplist;
 
     protected:
         CI(cobskiplist const *r_, link l_) : r(r_), l(l_) {}
     };
+
+    using I = CI;
+    using iterator = CI;
+    using const_iterator = CI;
 
     constexpr I begin() { return I{this, head.get(surface)}; }
     constexpr I end() { return I{this, nil}; }
@@ -161,79 +111,89 @@ struct cobskiplist
     constexpr CI cbegin() const { return CI{this, head.get(surface)}; }
     constexpr CI cend() const { return CI{this, nil}; }
 
-    constexpr std::pair<I, bool> insert(T const &v)
+    // If an equivalent element is already in, returns the iterator to it
+    // (and `false`). If there is no room, returns `end()` (and `false`).
+    constexpr std::pair<I, bool> insert(T const &v) { return put(v, v); }
+    constexpr std::pair<I, bool> insert(T &&v) { return put(v, std::move(v)); }
+    template <class... A> constexpr std::pair<I, bool> emplace(A &&...a)
     {
+        return insert(T(std::forward<A>(a)...));
+    }
+
+    // Is there an element at `l`? O(1).
+    constexpr bool live(link l) const
+    {
+        index i;
+        return i.be(l.get()) && used.get(i);
+    }
+
+private:
+    // `key` is the key of the element to be made from `v`; they may be the same object
+    template <class U> constexpr std::pair<I, bool> put(T const &key, U &&v)
+    {
+        T const &v_ = key;
+        const node pred = predecessors(v_);
+        const link found = after(pred.get(surface), surface);
+        if (holds(found, v_)) {
+            return {I{this, found}, false};
+        }
         if (!room()) {
             return {I{this, nil}, false};
         }
 
-        auto lkp = lookup(v);
-        if (d[lkp.first.get(lkp.second).get()] == v) {
+        const link fresh = alloc();
+        index ifresh;
+        if (!ifresh.be(fresh.get())) {
             return {I{this, nil}, false};
         }
-
-        const link fresh = alloc();
         level lvl = climb();
         do {
-            link l = lkp.first.get(lvl);
-            if (l == nil) {
-                head.set(lvl, fresh);
-                next[fresh.get()].set(lvl, l);
+            const link l = pred.get(lvl);
+            next[ifresh.get()].set(lvl, after(l, lvl));
+            index il;
+            if (il.be(l.get())) {
+                next[il.get()].set(lvl, fresh);
             }
             else {
-                next[fresh.get()].set(lvl, fwd(l, lvl));
-                next[l.get()].set(lvl, fresh);
+                head.set(lvl, fresh);
             }
         } while (lvl.ebb());
 
-        d[fresh.get()] = v;
+        used.set(ifresh, true);
+        store.make(ifresh, std::forward<U>(v));
 
         return {I{this, fresh}, true};
     }
+
+public:
     // TODO insert(first, last), insert(initializer_list)
     // TODO emplace(Args...), swap(skiplist), extract(iterator), extract(key), merge(skiplist)
 
     constexpr void clear()
     {
         while (!empty()) {
-            erase(begin());
+            erase(lbegin());
         }
     }
 
+    // Returns the link following the erased one, or `nil` if `pos` is
+    // not in the skiplist (in which case nothing is erased).
     constexpr link erase(link pos)
     {
-        if (nil == pos) {
+        if (!live(pos)) {
             return nil;
         }
-        link rslt = next.get(surface);
-        erase(d[pos.get()]);
-        return rslt;
+        const link rslt = fwd(pos);
+        return unlink(val(pos), pos) ? rslt : link{nil};
     }
     constexpr I erase(CI pos)
     {
-        return I{this, erase(pos.l)};
+        return I{this, (pos.r == this) ? erase(pos.l) : link{nil}};
     }
 
     constexpr unsigned erase(T const &v)
     {
-        unsigned rslt = 0;
-        level lvl = level::greatest();
-        do {
-            const link l = head.get(lvl);
-            if (nil == l) {
-                continue;
-            }
-            const link sqnt = fwd(l, lvl);
-            if (v == d[l.get()]) {
-                head.set(lvl, sqnt);
-                next[l.get()].set(lvl, nil);
-                ++rslt;
-            }
-            else {
-                rslt += erasebody(lvl, l, sqnt, v);
-            }
-        } while (lvl.ebb());
-        return rslt > 0;
+        return unlink(v, nil);
     }
 
     constexpr link lbegin() const { return head.get(surface); }
@@ -252,22 +212,21 @@ struct cobskiplist
     }
     constexpr size_type count(T const &v) const
     {
-        auto pos = lookup(v);
-        return pos.first.get(pos.second) != nil;
+        return holds(lower(v), v);
     }
     constexpr I find(T const &v)
     {
-        auto lkp = lookup(v);
-        return (d[lkp.first.get(lkp.second).get()] == v) ? I{this, lkp} : I{this, nil};
+        const link l = lower(v);
+        return I{this, holds(l, v) ? l : link{nil}};
     }
     constexpr CI find(T const &v) const
     {
-        auto lkp = lookup(v);
-        return (d[lkp.first.get(lkp.second).get()] == v) ? CI{this, lkp} : CI{this, nil};
+        const link l = lower(v);
+        return CI{this, holds(l, v) ? l : link{nil}};
     }
     constexpr bool contains(link l) const
     {
-        return count(d[l.get()]) > 0;
+        return live(l);
     }
     constexpr bool contains(CI pos) const
     {
@@ -275,15 +234,21 @@ struct cobskiplist
     }
     constexpr I lower_bound(T const &v)
     {
-        auto const lkp = lookup(v);
-        return I{this, lkp.first.get(lkp.second)};
+        return I{this, lower(v)};
     }
     constexpr CI lower_bound(T const &v) const
     {
-        auto const lkp = lookup(v);
-        return CI{this, lkp.first.get(lkp.second)};
+        return CI{this, lower(v)};
     }
-    // TODO upper_bound(key)
+    // The first element `e` with `cmp(v, e)`
+    constexpr I upper_bound(T const &v)
+    {
+        return I{this, upper(v)};
+    }
+    constexpr CI upper_bound(T const &v) const
+    {
+        return CI{this, upper(v)};
+    }
     // TODO consider equal_range(key)
 
     // For debugging
@@ -300,93 +265,128 @@ struct cobskiplist
     }
 
 private:
+    // Where iterators that point to no element end up. One per thread.
+    static T& spot() { static thread_local T s{}; return s; }
+    constexpr T const& val(link l) const { index i; i.be(l.get()); return store.at(i); }
+
+    static cobskiplist& nowhere() { static thread_local cobskiplist none; return none; }
+
+    // `vacancy` is a stack of free nodes, `vacant` is the number of them
     bool room() const
     {
-        return vacant != nil;
+        return vacant != cobic<0>;
     }
     link alloc()
     {
         index vi;
-        if (vi.be(vacant.get())) {
-            link rslt = vacancy.get(vi);
-            if (!vacant.ebb()) {
-                vacant = nil;
-            }
-            return rslt;
+        if (vacant.ebb() && vi.be(vacant.get())) {
+            return vacancy.get(vi);
         }
         return nil;
     }
     void dealloc(link l)
     {
-        if (room()) {
-            vacancy.set(vacant, l);
+        index vi;
+        if (vi.be(vacant.get())) {
+            vacancy.set(vi, l);
             vacant.advance();
         }
     }
 
+    // Each level is half as likely as the one below it
     level climb()
     {
         level rslt;
-        rslt.be(log2(leveldist(rng)));
+        rslt.be(std::countr_one(static_cast<std::uint_fast32_t>(rng()) & ((1u << max_level) - 1u)));
         return rslt;
     }
 
-    constexpr std::pair<node, level> lookup(T const &v, level lvl = cobic<max_level>) const
+    // The node that follows `l` at level `lvl`, where `nil` stands for
+    // "before the first node".
+    constexpr link after(link l, level lvl) const
     {
-        node pos;
-        pos.fill(nil);
-        link l = head.get(lvl);
-        while ((nil == l) && lvl.ebb()) {
-            l = head.get(lvl);
-        }
+        return (l == nil) ? head.get(lvl) : fwd(l, lvl);
+    }
 
+    // For each level, the last node that is ordered before `v`, or
+    // `nil` if there is no such node at that level.
+    constexpr node predecessors(T const &v) const
+    {
         CMP cmp;
-        while (l != nil)
-        {
-            const link nxt = fwd(l, lvl);
-            if ((nxt != nil) && !cmp(v, d[nxt.get()])) {
+        node pred;
+        link l = nil;
+        level lvl = level::greatest();
+        do {
+            link nxt = after(l, lvl);
+            while ((nxt != nil) && cmp(val(nxt), v)) {
                 l = nxt;
+                nxt = fwd(l, lvl);
+            }
+            pred.set(lvl, l);
+        } while (lvl.ebb());
+        return pred;
+    }
+
+    // The first node that is not ordered before `v`, `nil` if there is none.
+    constexpr link lower(T const &v) const
+    {
+        return after(predecessors(v).get(surface), surface);
+    }
+
+    constexpr link upper(T const &v) const
+    {
+        const link l = lower(v);
+        return holds(l, v) ? fwd(l) : l;
+    }
+
+    // Is `l`, which is not ordered before `v`, a node equivalent to `v`?
+    constexpr bool holds(link l, T const &v) const
+    {
+        return (l != nil) && !CMP{}(v, val(l));
+    }
+
+    // Take the node equivalent to `v` out, if there is one and, unless
+    // `only` is `nil`, if it is the `only` node. Returns the number of
+    // nodes taken out.
+    constexpr unsigned unlink(T const &v, link only)
+    {
+        const node pred = predecessors(v);
+        const link found = after(pred.get(surface), surface);
+        index ifound;
+        if (!holds(found, v) || !ifound.be(found.get())) {
+            return 0;
+        }
+        if ((only != nil) && (only != found)) {
+            return 0;
+        }
+        level lvl = level::greatest();
+        do {
+            const link l = pred.get(lvl);
+            if (after(l, lvl) != found) {
+                continue;
+            }
+            index il;
+            if (il.be(l.get())) {
+                next[il.get()].set(lvl, fwd(found, lvl));
             }
             else {
-                pos.set(lvl, l);
-                if (!lvl.ebb()) {
-                    return {pos, lvl};
-                }
+                head.set(lvl, fwd(found, lvl));
             }
-        }
-        return {pos, lvl};
+        } while (lvl.ebb());
+        used.set(ifound, false);
+        store.drop(ifound);
+        dealloc(found);
+        return 1;
     }
 
-    constexpr unsigned erasebody(level lvl, link l, link sqnt, T const &v)
-    {
-        CMP cmp;
-        unsigned rslt = 0;
-        while (sqnt != nil) {
-            if (v == d[sqnt.get()]) {
-                next[l.get()].set(lvl, fwd(sqnt,lvl));
-                next[sqnt.get()].set(lvl, nil);
-                rslt = 1;
-                break;
-            }
-            else if (cmp(v, d[sqnt.get()])) {
-                break;
-            }
-            l = sqnt;
-            sqnt = fwd(sqnt, lvl);
-        }
-        return rslt;
-    }
-
-    T d[N + 1];
+    cobstore<T, N> store;
+    cobarray<bool, N> used;
     node head;
     node next[N];
     link vacant;
     cobarray<link, N> vacancy;
 
-    // TODO parameterize RNG
-    std::random_device rndev;
-    std::mt19937 rng;
-    std::uniform_int_distribution<std::mt19937::result_type> leveldist;
+    RNG rng;
 };
 
 #endif // define      INC_COBSKIPLIST

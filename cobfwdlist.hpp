@@ -8,6 +8,9 @@
 
 
 #include "cobarray.hpp"
+#include "cobstore.hpp"
+
+#include <utility>
 
 
 template <class T, int N>
@@ -31,21 +34,15 @@ struct cobfwdlist {
                 x = nil;
             }
         }
+        used.fill(false);
     }
 
     constexpr bool empty() const noexcept { return head == nil; }
-    constexpr unsigned size() const noexcept {
-        auto l = head;
-        unsigned c = 0;
-        while (l != nil) {
-            ++c;
-            l = fwd(l);
-        }
-        return c;
-    }
+    constexpr unsigned size() const noexcept { return count; }
+    constexpr bool full() const noexcept { return count == N; }
     constexpr unsigned max_size() const noexcept { return N; }
 
-    constexpr bool push_front(T const& t) {
+    template <class... A> constexpr bool emplace_front(A&&... a) {
         if (nil == vacant) {
             return false;
         }
@@ -53,15 +50,18 @@ struct cobfwdlist {
         vacant_idx.be(vacant.get());
         const link l = vacant;
         vacant = next.get(vacant_idx);
-    
+        ++count;
+
         next.set(vacant_idx, head);
+        used.set(vacant_idx, true);
         head = l;
 
-        d[vacant_idx.get()] = t;
+        store.make(vacant_idx, std::forward<A>(a)...);
 
         return true;
     }
-    // TODO emplace_front(Args&&...)
+    constexpr bool push_front(T const& t) { return emplace_front(t); }
+    constexpr bool push_front(T&& t) { return emplace_front(std::move(t)); }
 
     template<template<class> class V> constexpr V<T> pop_front() {
         if (head == nil) {
@@ -70,48 +70,39 @@ struct cobfwdlist {
         index head_idx;
         head_idx.be(head.get());
         const auto l = head;
+        V<T> rslt(std::move(store.at(head_idx)));
+        store.drop(head_idx);
         head = next.get(head_idx);
 
         next.set(head_idx, vacant);
+        used.set(head_idx, false);
         vacant = l;
+        --count;
 
-        return d[head_idx.get()];
+        return rslt;
     }
 
     class I {
         cobfwdlist * r;
         link l;
     public:
+        I() : r(&nowhere()), l(nil) {}
+        I operator++(int) { I t = *this; ++*this; return t; }
         using value_type = T;
         using difference_type = std::ptrdiff_t;
         using pointer = T*;
         using reference = T&;
         using iterator_category = std::forward_iterator_tag;
-       
-        I(I const& x) : r(x.r), l(x.l) {}
 
-        I& operator=(I& x) {
-            r = x.r;
-            l = x.l;
-            return *this;
-        }
-        I& operator=(I&& x) {
-            r = x.r;
-            l = x.l;
-            return *this;
-        }
         I& operator++() {
             l = r->fwd(l);
             return *this;
         }
 
-        constexpr T& operator*() { return r->d[l.get()]; }
-        constexpr T const& operator*() const { return r->d[l.get()]; }
-        constexpr T* operator->() { return r->d + l.get(); }
-        constexpr T const* operator->() const { return r->d + l.get(); }
+        T& operator*() const { index i; return (i.be(l.get()) && r->live(l)) ? r->store.at(i) : spot(); }
+        T* operator->() const { return &**this; }
 
         constexpr bool operator==(I const& x) const { return (r == x.r) && (l == x.l); }
-        constexpr bool operator!=(I const& x) const { return (r != x.r) || (l != x.l); }
 
         constexpr int idx() {return l.get();}
 
@@ -127,39 +118,32 @@ struct cobfwdlist {
     public:
         using value_type = T;
         using difference_type = std::ptrdiff_t;
-        using pointer = T*;
-        using reference = T&;
+        using pointer = T const*;
+        using reference = T const&;
         using iterator_category = std::forward_iterator_tag;
        
-        CI(CI const& x) : r(x.r), l(x.l) {}
+        CI() : r(&nowhere()), l(nil) {}
+        CI operator++(int) { CI t = *this; ++*this; return t; }
         CI(I const& x) : r(x.r), l(x.l) {}
 
-        CI& operator=(CI& x) {
-            r = x.r;
-            l = x.l;
-            return *this;
-        }
-        CI& operator=(CI&& x) {
-            r = x.r;
-            l = x.l;
-            return *this;
-        }
         CI& operator++() {
             l = r->fwd(l);
             return *this;
         }
 
-        T const& operator*() const { return r->d[l.get()]; }
-        T const* operator->() const { return r->d + l.get(); }
+        T const& operator*() const { index i; return (i.be(l.get()) && r->live(l)) ? r->store.at(i) : spot(); }
+        T const* operator->() const { return &**this; }
 
         bool operator==(CI const& x) const { return (r == x.r) && (l == x.l); }
-        bool operator!=(CI const& x) const { return (r != x.r) || (l != x.l); }
 
         friend struct cobfwdlist;
 
     protected:
         CI(cobfwdlist const* r_, link l_) : r(r_), l(l_) {}
     };
+
+    using iterator = I;
+    using const_iterator = CI;
 
     constexpr I begin() { return I{this, head}; }
     constexpr I end() { return I{this, nil}; }
@@ -169,34 +153,38 @@ struct cobfwdlist {
     constexpr CI cend() const { return CI{this, nil}; }
     // TODO? before_begin()?
 
-    constexpr link insert_after(link pos, T const& value) {
-        return insert_after(CI{this, pos}, value).l;
-    }
-    constexpr I insert_after(CI pos, T const& value) {
+    template <class... A> constexpr link emplace_after(link pos, A&&... a) {
         if (nil == vacant) {
-            return I{this, nil};
+            return nil;
+        }
+        if (!live(pos)) {
+            return nil;
         }
         index pos_idx;
-        pos_idx.be(pos.l.get());
+        pos_idx.be(pos.get());
         index vacant_idx;
         vacant_idx.be(vacant.get());
         vacant = next.get(vacant_idx);
+        ++count;
 
         next.set(vacant_idx, next.get(pos_idx));
         next.set(pos_idx, vacant_idx);
+        used.set(vacant_idx, true);
 
-        d[vacant_idx.get()] = value;
+        store.make(vacant_idx, std::forward<A>(a)...);
 
-        return I{this, vacant_idx};
+        return vacant_idx;
     }
-    // TODO emplace_after(pos, Args&&...)
-    // TODO swap(coblist&)
+    constexpr link insert_after(link pos, T const& value) { return emplace_after(pos, value); }
+    constexpr link insert_after(link pos, T&& value) { return emplace_after(pos, std::move(value)); }
+    constexpr I insert_after(CI pos, T const& value) { return I{this, emplace_after(pos.l, value)}; }
+    constexpr I insert_after(CI pos, T&& value) { return I{this, emplace_after(pos.l, std::move(value))}; }
 
     constexpr link erase_after(link pos) {
         return erase_after(CI{this, pos}).l;
     }
     constexpr I erase_after(CI pos) {
-        if (nil == pos.l) {
+        if (!live(pos.l)) {
             return I{this, nil};
         }
         index pos_idx;
@@ -209,11 +197,52 @@ struct cobfwdlist {
         index next_idx;
         next_idx.be(after.get());
 
+        store.drop(next_idx);
         next.set(pos_idx, next.get(next_idx));
         next.set(next_idx, vacant);
+        used.set(next_idx, false);
         vacant = after;
+        --count;
 
         return I{this, next.get(pos_idx)};
+    }
+
+
+    template <template <class> class V> constexpr V<T> front() const {
+        return (head == nil) ? V<T>{} : V<T>(val(head));
+    }
+
+    // Both lists are sorted. Moves the elements of x into this, keeping the order.
+    constexpr bool merge(cobfwdlist& x) {
+        return merge(x, [](T const& t, T const& u) { return t < u; });
+    }
+    template <class C> constexpr bool merge(cobfwdlist& x, C comp) {
+        if ((&x == this) || (size() + x.size() > N)) {
+            return false;
+        }
+        link before = nil;
+        link p = head;
+        for (link l = x.head; l != nil; l = x.fwd(l)) {
+            while ((p != nil) && !comp(x.val(l), val(p))) {
+                before = p;
+                p = fwd(p);
+            }
+            if (before == nil) {
+                emplace_front(std::move(x.val(l)));
+                before = head;
+            }
+            else {
+                before = emplace_after(before, std::move(x.val(l)));
+            }
+        }
+        x.clear();
+        return true;
+    }
+
+    constexpr void swap(cobfwdlist& x) {
+        cobfwdlist t = *this;
+        *this = x;
+        x = t;
     }
 
     constexpr void clear() {
@@ -222,7 +251,6 @@ struct cobfwdlist {
         }
     }
 
-    // TODO merge(coblist&), merge(coblist&, Compare)
     // TODO splice(pos, list&), splice(pos, list&, it), splice(pos, list&, first, last)
 
     constexpr unsigned remove(T const& t) {
@@ -231,7 +259,7 @@ struct cobfwdlist {
 
     template <class UP> constexpr unsigned remove_if(UP p) {
         unsigned rslt = 0;
-        while (!empty() && p(d[head.get()])) {
+        while (!empty() && p(val(head))) {
             pop_front<ignore>();
             ++rslt;
         }
@@ -241,7 +269,7 @@ struct cobfwdlist {
         link l = head;
         link after = fwd(head);
         while (after != nil) {
-            if (p(d[after.get()])) {
+            if (p(val(after))) {
                 erase_after(l);
                 ++rslt;
             }
@@ -262,7 +290,7 @@ struct cobfwdlist {
         link after = fwd(head);
         unsigned rslt = 0;
         while (after != nil) {
-            if (p(d[after.get()], d[f.get()])) {
+            if (p(val(after), val(f))) {
                 erase_after(f);
                 ++rslt;
             }
@@ -293,17 +321,8 @@ struct cobfwdlist {
     }
 
     template <class C> constexpr void sort(C comp) {
-        link f = head;
-        while (f != nil) {
-            link l = fwd(f);
-            while (l != nil) {
-                if (!comp(d[f.get()], d[l.get()])) {
-                    std::swap(d[l.get()], d[f.get()]);
-                }
-                l = fwd(l);
-            }
-            f = fwd(f);
-        }
+        if (size() < 2) { return; }
+        head = msort(head, size(), comp);
     }
 
     constexpr link lbegin() const { return head; }
@@ -319,31 +338,131 @@ struct cobfwdlist {
             return nil;
         }
     }
-    constexpr bool contains(link l) {
-        link p = head;
-        while (p != nil) {
-            if (p == l) {
-                return true;
-            }
-            p = fwd(p);
-        }
-        return false;
+    // Is there an element at `l`? O(1).
+    constexpr bool live(link l) const {
+        index i;
+        return i.be(l.get()) && used.get(i);
     }
-    constexpr bool contains(CI pos) {
+    constexpr bool contains(link l) const {
+        return live(l);
+    }
+    constexpr bool contains(CI pos) const {
         return (pos.r == this) && contains(pos.l);
     }
 
+    constexpr T get(link l) const {
+        index i;
+        return (i.be(l.get()) && live(l)) ? store.at(i) : T{};
+    }
+    constexpr bool set(link l, T const& t) {
+        return with(l, [&](T& x) { x = t; });
+    }
+    constexpr bool set(link l, T&& t) {
+        return with(l, [&](T& x) { x = std::move(t); });
+    }
+
+    // Calls f with the element at l, if there is one. Returns whether it did.
+    template <class F> constexpr bool with(link l, F&& f) {
+        index i;
+        if (i.be(l.get()) && live(l)) {
+            f(store.at(i));
+            return true;
+        }
+        return false;
+    }
+    template <class F> constexpr bool with(link l, F&& f) const {
+        index i;
+        if (i.be(l.get()) && live(l)) {
+            f(store.at(i));
+            return true;
+        }
+        return false;
+    }
+    // Calls f(T&) for each element, first to last
+    template <class F> constexpr void for_each(F&& f) {
+        for (link l = head; l != nil; l = fwd(l)) {
+            f(val(l));
+        }
+    }
+    template <class F> constexpr void for_each(F&& f) const {
+        for (link l = head; l != nil; l = fwd(l)) {
+            f(val(l));
+        }
+    }
+
+    cobfwdlist(cobfwdlist const& x) : head(x.head), next(x.next), used(x.used), vacant(x.vacant), count(x.count) {
+        copy_elements(x);
+    }
+    cobfwdlist& operator=(cobfwdlist const& x) {
+        if (this != &x) {
+            clear();
+            head = x.head; next = x.next; used = x.used; vacant = x.vacant; count = x.count;
+            copy_elements(x);
+        }
+        return *this;
+    }
+    ~cobfwdlist() { clear(); }
+
 private:
+    static cobfwdlist& nowhere() { static thread_local cobfwdlist none{}; return none; }
+
     template <class U> struct ignore {
         ignore() {}
         ignore(U const&) {}
     };
     
-    T d[N+1];
+    constexpr void link_after(link l, link n) { index i; if (i.be(l.get())) { next.set(i, n); } }
+
+    // Sorts the n nodes that start at h, returns the first node of the result,
+    // the last node of which is followed by nil.
+    template <class C> constexpr link msort(link h, unsigned n, C& comp) {
+        if (n < 2) {
+            link_after(h, nil);
+            return h;
+        }
+        link mid = h;
+        for (unsigned i = 0; i < n / 2; ++i) { mid = fwd(mid); }   // before the first half is cut off
+        link a = msort(h, n / 2, comp);
+        link b = msort(mid, n - n / 2, comp);
+        link first = nil;
+        link last = nil;
+        while ((a != nil) || (b != nil)) {
+            link take = nil;
+            if ((b == nil) || ((a != nil) && !comp(val(b), val(a)))) {
+                take = a;
+                a = fwd(a);
+            }
+            else {
+                take = b;
+                b = fwd(b);
+            }
+            if (last == nil) { first = take; } else { link_after(last, take); }
+            last = take;
+        }
+        link_after(last, nil);
+        return first;
+    }
+
+    // Where iterators that point to no element end up. One per thread.
+    static T& spot() { static thread_local T s{}; return s; }
+
+    constexpr T& val(link l) { index i; i.be(l.get()); return store.at(i); }
+    constexpr T const& val(link l) const { index i; i.be(l.get()); return store.at(i); }
+
+    constexpr void copy_elements(cobfwdlist const& x) {
+        for (link l = head; l != nil; l = fwd(l)) {
+            index i;
+            if (i.be(l.get())) { store.make(i, x.store.at(i)); }
+        }
+    }
+
+    cobstore<T, N> store;
     link head;
     cobarray<link, N> next;
+    cobarray<bool, N> used;
     link vacant;
+    unsigned count = 0;
 };
 
 
-#endif // define      INC_COBLIST
+#endif // define      INC_COBFWDLIST

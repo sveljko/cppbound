@@ -7,27 +7,12 @@
 #define INC_COBTMRWHEEL
 
 
-#include "coblist.hpp"
+#include "cobtmrlist.hpp"
 
 
 template <class ID, int N, class U, unsigned SPOKES> class cobtmrwheel {
     static_assert(N > 0, "List must have some capacity");
     static_assert(SPOKES > 1, "Must have more than one spoke");
-
-    struct elem {
-        ID id;
-        U  remaining;
-        elem(ID id_)
-            : id(id_)
-        {
-        }
-        elem(ID id_, U remain)
-            : id(id_)
-            , remaining(remain)
-        {
-        }
-        bool operator==(elem const& x) { return id == x.id; }
-    };
 
     using list   = cobtmrlist<ID, N / SPOKES * 2, U>;
     using ispoke = cobint<0, SPOKES - 1>;
@@ -44,10 +29,14 @@ public:
 
     index start(ID id, U duration)
     {
-        unsigned i = duration.count() % SPOKES;
-        ispoke   spoke;
-        spoke.be(i);
-        return { spoke, timers[spoke.get()].start(id, duration) };
+        // Soonest to expire is on the next tick, which looks at spoke `next`
+        auto ticks = duration.count();
+        if (ticks < 1) {
+            ticks = 1;
+        }
+        ispoke spoke;
+        spoke.be(static_cast<int>((next.get() + (ticks - 1) % SPOKES) % SPOKES));
+        return { spoke, timers[spoke.get()].start(id, U{ ticks }) };
     }
 
     int stop(ID id)
@@ -68,9 +57,8 @@ public:
         auto it = next;
         do {
             auto& spoke = timers[it.get()];
-            auto  rslt  = spoke.template stop_first<V>();
-            if (rslt) {
-                return rslt;
+            if (!spoke.empty()) {
+                return spoke.template stop_first<V>();
             }
             if (!it.advance()) {
                 it = cobic<0>;
@@ -82,11 +70,13 @@ public:
 
     template <class F> void process_expired(U elapsed, F f)
     {
-        for (unsigned i = 0; i < elapsed.count(); ++i) {
-            timers[next.get()].process_expired(U{ SPOKES }, f);
+        for (auto ticks = elapsed.count(); ticks > 0; --ticks) {
+            // First turn the wheel, so that `f` can start timers
+            const ispoke spoke = next;
             if (!next.advance()) {
                 next = cobic<0>;
             }
+            timers[spoke.get()].process_expired(U{ SPOKES }, f);
         }
     }
 

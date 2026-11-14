@@ -31,20 +31,24 @@ public:
 
     cobtmrmill() { next.fill(cobic<0>); }
 
-    static constexpr U max_duration{ 1 << (DIM * cobhlp::log2(LVL)) };
+    static constexpr U max_duration{ cobhlp::pow(DIM, LVL) - 1 };
 
     struct index {
         level                lvl;
         lvlindex             ispoke;
         typename spoke::link idx;
 
-        constexpr bool valid(index i) const { return i.idx != spoke::nil; }
+        constexpr bool valid() const { return idx != spoke::nil; }
     };
 
     constexpr index spoke_from_duration(U duration)
     {
-        level    lvl;
-        unsigned d = duration.count();
+        level lvl;
+        // Before anything else, as the duration might not fit our integer
+        if ((duration < U{ 0 }) || (duration > max_duration)) {
+            return { lvl, cobic<0>, spoke::nil };
+        }
+        unsigned d = static_cast<unsigned>(duration.count());
         do {
             lvlindex idx;
             if (idx.be(d)) {
@@ -64,6 +68,9 @@ public:
             auto& spoke = timers[i.lvl.get()][i.ispoke.get()];
             if (spoke.push_front(id)) {
                 i.idx = spoke.lbegin();
+            }
+            else {
+                i.idx = spoke::nil;
             }
         }
         return i;
@@ -106,7 +113,7 @@ public:
                             return rslt;
                         }
                     }
-		    ispoke = cobic<0>;
+                    ispoke = cobic<0>;
                 }
             } while (ispoke != next.get(lvl));
         } while (lvl.advance());
@@ -117,24 +124,35 @@ public:
     template <class F> void process_expired(U elapsed, F f)
     {
         for (U i{ 0 }; i < elapsed; ++i) {
-            level lvl;
+            // First turn the mill and take the expired timers out, then
+            // report them, so that `f` can start and stop timers.
+            cobarray<lvlindex, LVL> due;
+            level                   top;
+            level                   lvl;
             do {
                 auto ispoke = next.get(lvl);
-                for (auto const& id : timers[lvl.get()][ispoke.get()]) {
-                    f(id);
-                }
-                timers[lvl.get()][ispoke.get()].clear();
-
+                due.set(lvl, ispoke);
+                top = lvl;
                 if (ispoke.advance()) {
                     next.set(lvl, ispoke);
                     break;
                 }
                 next.set(lvl, cobic<0>);
             } while (lvl.advance());
+
+            lvl = level{};
+            do {
+                auto&       live    = timers[lvl.get()][due.get(lvl).get()];
+                const spoke expired = live;
+                live.clear();
+                for (auto const& id : expired) {
+                    f(id);
+                }
+            } while ((lvl != top) && lvl.advance());
         }
     }
 
     // std::optional<ID> expired(U proteklo) {}
 };
 
-#endif // define      INC_COBTMRWHEEL
+#endif // define      INC_COBTMRMILL

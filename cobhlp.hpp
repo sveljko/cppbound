@@ -6,6 +6,8 @@
 #if !defined(INC_COBHLP)
 #define INC_COBHLP
 
+#include <cstdint>
+
 namespace cobhlp {
 
 // TODO avoid defining this ourselves
@@ -25,8 +27,23 @@ static constexpr unsigned log2(unsigned v)
     return r;
 }
 
+static constexpr unsigned long long pow(unsigned long long base, unsigned exponent)
+{
+    unsigned long long r = 1;
+    for (unsigned i = 0; i < exponent; ++i) {
+        r *= base;
+    }
+    return r;
+}
+
 template <class T> struct less {
     constexpr bool operator()(T const& l, T const& r) const { return l < r; }
+};
+
+// A small deterministic random number generator
+struct xorshift32 {
+    std::uint32_t s = 2463534242u;
+    constexpr std::uint32_t operator()() { s ^= s << 13; s ^= s >> 17; s ^= s << 5; return s; }
 };
 } // namespace cobhlp
 

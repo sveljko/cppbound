@@ -26,7 +26,7 @@ template <class ID, int N, class U> class cobtmrlist {
             , remaining(remain)
         {
         }
-        bool operator==(elem const& x) { return id == x.id; }
+        bool operator==(elem const& x) const { return id == x.id; }
     };
 
     coblist<elem, N> timers;
@@ -35,19 +35,26 @@ public:
     using tmrID = ID;
     using index = typename coblist<elem, N>::link;
 
+    bool empty() const { return timers.empty(); }
+
     index start(ID id, U duration)
     {
         auto it = timers.lbegin();
         for (; it != timers.lend(); it = timers.fwd(it)) {
             auto tmr = timers.get(it);
             if (tmr.remaining > duration) {
-                tmr.remaining -= duration;
-                timers.set(it, tmr);
                 break;
             }
             duration -= tmr.remaining;
         }
-        return timers.insert(it, { id, duration });
+        const index rslt = timers.insert(it, { id, duration });
+        // Only if we're actually in, the one after us waits that much less
+        if ((rslt != timers.lend()) && (it != timers.lend())) {
+            auto tmr = timers.get(it);
+            tmr.remaining -= duration;
+            timers.set(it, tmr);
+        }
+        return rslt;
     }
 
     int stop(ID id)
@@ -63,7 +70,7 @@ public:
 
     int stop(index it)
     {
-        if (it != timers.lend()) {
+        if (timers.live(it)) {
             auto tmr = timers.get(it);
             auto fwd = timers.fwd(it);
             if (fwd != timers.lend()) {
@@ -89,19 +96,19 @@ public:
 
     template <class F> void process_expired(U elapsed, F f)
     {
-        auto it = timers.lbegin();
-        while (it != timers.lend()) {
-            auto tmr = timers.get(it);
+        // Always look at the first timer and remove it before reporting,
+        // so that `f` can start and stop timers.
+        while (!timers.empty()) {
+            const auto it  = timers.lbegin();
+            auto       tmr = timers.get(it);
             if (tmr.remaining > elapsed) {
                 tmr.remaining -= elapsed;
                 timers.set(it, tmr);
                 break;
             }
             elapsed -= tmr.remaining;
+            timers.erase(it);
             f(tmr.id);
-            auto old = it;
-            it       = timers.fwd(it);
-            timers.erase(old);
         }
     }
 

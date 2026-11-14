@@ -23,6 +23,12 @@ There are:
   STL iterators, the whole `<algorithm>` and range-for would not be available.
   So, don't ever use iterators on your own, but just to pass to standard
   algorithms or implicitly in range-for, and you should be good.
+  The iterators satisfy the C++20 iterator concepts (random access for arrays
+  and matrices, bidirectional for `coblist`, forward for the rest), so
+  `std::ranges` algorithms work: `std::ranges::sort(a)`. A default-constructed
+  iterator points to the end of a per-thread dummy container, so using it is
+  safe too. Elements of a `cobskiplist` are read-only through iterators,
+  since changing a key would break the ordering.
 * Dimension bound matrices - two dimensional arrays. Needed to avoid copying
   whole rows on accessing elements.
 * Pointers that are never null(ptr). We call them `fullptr<T>`. While there are
@@ -66,11 +72,9 @@ There are:
   "spokes" each being a timer list and used for timers that expire
   "modulo spokes". Thus inserting and searching is "spokes times
   faster". It loses some flexibility as it now has to be based on
-  "ticks", the durations cannot be arbitrary any more. Also, there is
-  a loss in precision proportional to the number of spokes. One can
-  get around this loss of precision by trading it off with loss of
-  performance, if on each "tick" each spoke is checked for expired
-  timers (rather than only the "next" spoke being checked).
+  "ticks", the durations cannot be arbitrary any more. There is no
+  loss in precision: a timer goes to the spoke that will be checked
+  on the very tick the timer is to expire on.
 * Capacity bound Timer mill. It has several wheels, but each spoke is
   now a simple "vector" of timers. Each wheel has a different scale of
   ticks, thus longer timers lose more precision. Also there is a limit
@@ -82,13 +86,22 @@ There are:
   is cancelled, it's not actually removed from the list, it's just
   "nulified". That is, you need to have a way to distinguies this
   "cancelled" timer from a "non-cancelled one". 
+* Elements of any type in the lists and the skip list (`std::string`, `std::unique_ptr`, types
+  without a default constructor), constructed and destroyed exactly when inserted and erased.
+* `contingent<T>`: an optional that uses a sentinel value (nullptr, NaN, a chosen integer, the
+  integer just outside a range), so it takes no more room than the value.
+* `fullshared`/`optshared` and `fullunique`/`optunique`: shared and unique pointers that are
+  never null, or that can be null but can't be accessed without checking.
+* `atbarray`: an array whose dimension is set once at run time, yet whose indices are checked
+  at compile time (the `atb` prefix is for _allocation time bound_ containers).
+* `cobpool` (object pool), `cobring` (ring buffer), `cobbitset` and `cobhash` (hash table).
 
 This should provide, with the caveats mentioned above, the same level
 of safety as, say, Ada/Spark's "no runtime errors". It's actually
 higher safety than most other languages, including various "safe"
 ones, such as "plain" Ada, that catch such errors at runtime.
 
-Other fundamental types such as strings, vectors, hash tables and
+Other fundamental types such as strings, vectors and
 search trees are not implemented at this time. They might be added in the future.
 
 ## Getting started
@@ -278,9 +291,26 @@ do {
 ```
 
 
+### More things to do with range bound integers
+
+```cpp
+cobint<0, 9> x = cobint<0, 9>::clamp(99);     // 9: the nearest value of the range
+x.advance_wrap();                              // 0: goes around, instead of failing
+auto m = max(x, cobint<3, 4>{});               // cobint<3, 9>
+auto a = abs(cobint<-5, 3>{});                 // cobint<0, 5>
+auto w = cobint<0, 5>{}.as<long long>() + cobi<long long, 1LL << 40>{};  // mixing types
+std::cout << x << std::endl;                   // prints the number
+```
+
+The three-way comparison `<=>` works between ranges and with plain integers. Conversion
+between ranges is allowed only to a wider range, and `std::is_convertible` tells the truth.
+
 ### Compiler error messages
 
 TLDR; they're not great.
+
+Note that converting to a narrower range is rejected by the constructor constraints, so
+the message is "no viable conversion" (or similar), rather than "Out of upper bounds".
 
 So, compilers should catch undefined behavior at compile time. In our case, this is
 mostly overflow, but could be other things, such as division by zero. The ones we tried
@@ -483,10 +513,10 @@ for illustration here):
     r = 5; // !!! writing to a dangling reference
 ```
 
-   Also, for structs/classes we provide a helper `getset(index, data-member-pointer)`
+   Also, for structs/classes we provide a helper `get(index, data-member-pointer)`
    which will get only the given member. It's a little cumbersome, but works well.
 * `set(index, value)` will set the element to the given value, which implies a copy and again
-   could be a performance penalty, and we also provide `set(index, value, data-member-poiinter)`.
+   could be a performance penalty, and we also provide `set(index, data-member-pointer, value)`.
 * `grab(index)` returns a _pr-only wrapper_ with an overloaded `operator->`. You cannot get
    its address, or even copy it. It's sole purpose is to provide a nicer, yet safe, syntax
    for accessing or changing members of class/struct and it's unusable for scalar types.
@@ -537,11 +567,48 @@ Like for arrays, we have one more element than "asked for" and the "end()" itera
 to it. We use its index as the equivivalent of a `nullptr` from the usual "dynamically
 allocated lists".
 
+### Usual members
+
+Lists keep an element count, so `size()` is O(1), and have `full()`, `front<V>()` (and
+`back<V>()` for `coblist`), which give a copy in a "generic optional" `V`. `coblist` has
+`splice(pos, other)`, `merge(other[, comp])` and `swap(other)`; `cobfwdlist` has `merge` and
+`swap`. They return `false` and change nothing if the elements would not all fit. `sort()` is
+a stable merge sort, O(n log n), which only changes links. `cobskiplist` has `upper_bound`.
+Arrays and matrices have `==`, `front()`, `back()` and `swap()`; matrices also `rows()`,
+`columns()`, `get_row(r)` and `set_row(r, v)`. `perhaps` has `emplace()` and `==`.
+`fullptr<T>::from(ref)` makes a `fullptr` from a reference, and a `fullptr` converts to
+a `fullptr` of a const or base type. `optptr::value_or` returns a `fullptr`, and `and_then`
+passes a reference rather than a pointer.
+
+### Elements of any type
+
+The lists and the skip list hold any type, not just PODs: `std::string`, `std::unique_ptr<X>`,
+types without a default constructor. Elements are constructed when inserted and destroyed
+when erased (`emplace_front`, `emplace_back`, `emplace`, `emplace_after`). Because a type
+may not be copyable, there is `with(link, f)`, which calls `f` with the element if there is
+one, and `for_each(f)`:
+
+```cpp
+coblist<std::unique_ptr<int>, 4> l;
+l.emplace_back(new int(2));
+l.with(l.lfront(), [](std::unique_ptr<int>& p) { *p = 3; });
+```
+
+`get(link)` returns a copy (or `T{}` when there is no element), so it needs a default
+constructor. Dereferencing an iterator that points to no element gives a per-thread
+"spot" object, which also needs a default constructor, but only if you dereference such
+iterators. The library assumes that copying an element does not throw.
+
+Arrays and matrices keep all elements alive all the time, so the element needs a default
+constructor. They have `cobarray<int, 3> a{1, 2, 3}` (exactly N values, checked at compile
+time), `filled(v)` and `generate(f)`, with `f` called with each index.
+
 The interface of `std::list` is mostly there and behaves similarly, but those functions that
 use iterators should not be used unless you have to. Use the alternate/mimicked functions
-which accept the indeces, which are safe. For sanity checks, you can use `contains()` which
-will check whether the given index is in the list. It's slow (O(N)), but, provides a higher
-level of ensurance of correctness.
+which accept the indeces, which are safe. To check whether there is an element at a link
+(for example, a link kept after the element was erased), use `live(link)` (or `contains()`),
+which is O(1). A stale link is harmless: `erase`, `insert` and `set` do nothing with it. Of
+course, if a new element reused the slot, the link refers to that new element.
 
 If you take a look at the code, you will notice that there may be many problems in the code
 which cannot be addressed with our compile-time bound integers and arrays. The forward
@@ -572,10 +639,94 @@ Parts of the STL associative containers interface that obviously "hint" that it 
 are implemented as red-black-trees are omitted. Other parts are missing simply because of a 
 lack of need so far and are easilly added.
 
-Skiplists rely on a good RNG to randomize the levels of each node, thus we currently 
-"hard-code" to a good, well-known RNG from the C++ standard library. This requires 
-further study on how to allow the user to parameterize RNG w/out performance degradation.
+Skiplists use a random number generator to randomize the levels of each node. The default,
+`cobhlp::xorshift32`, is small and deterministic, so the same insertions always build the same
+structure. If the keys may be chosen by an adversary, pass your own generator type as the last
+template parameter: `cobskiplist<int, 64, cobhlp::less<int>, MyRng>`. It must be default
+constructible and callable as `rng()` returning an unsigned integer.
 
+
+## Optionals that take no extra room: `contingent`
+
+`perhaps<T>` keeps a flag next to the value. `contingent<T>` does not: one value of what is
+stored means "nothing", so `sizeof(contingent<T>)` is `sizeof` of what it holds. It has the same
+interface as `perhaps` (`has_value`, `and_then`, `or_else`, `transform`, `value_or`, `reset`,
+`==`), but, as there is no mutable access to the value, you assign a new `contingent`.
+
+```cpp
+contingent<int*>                      p;           // nullptr is nothing
+contingent<double>                    d(1.5);      // NaN is nothing
+contingent<int, nothing_is<-1>>       i(3);        // -1 is nothing
+contingent<cobint<0, 5>>              c;           // 6 is nothing
+auto r = coblist<int*, 3>{}.pop_front<contingently>();
+```
+
+The policy that says what "nothing" is, is `nothing<T>`, which you specialise for your own
+types. Constructing a `contingent` from the sentinel itself gives an empty one. For
+floating point numbers, NaN is kept as its bits and recognised by them, so that it works
+with `-ffast-math` too (but do not compute with NaNs then, they are not _numbers_ any more).
+`nulifier<T, nothing_is<-1>>` makes a `NULIFY` for `cobtmrleanmill` out of a policy.
+
+## Shared and unique pointers that are safe when null
+
+`fullshared<T>` (shared ownership) and `fullunique<T>` (sole ownership) are never null, and
+`optshared<T>` and `optunique<T>` may be null, but then there is no way to reach the object
+without checking: no `*`, `->` or `get()`, only `and_then(f)`, which calls `f(T&)` if there is an
+object. Create them with `make(args...)`; `fullshared<T>::from<std::optional>(shared_ptr)` checks a
+pointer you have.
+
+```cpp
+auto a = fullshared<std::string>::make("abc");   // always valid
+optshared<std::string> o = a;
+o.and_then([](std::string& s) { s += "d"; });
+```
+
+A moved-from pointer would be null, so a `fullshared` is only ever copied (a "move" copies),
+and a `fullunique` can be neither copied nor moved: it lives where it was made. An `optunique`
+can be moved, and a moved-from one is simply null. `release()` gives the `unique_ptr` away.
+
+## Allocation time bound containers: `atb`
+
+The prefix `atb` is for containers whose dimension is not known at compile time, is fixed once
+when the program starts, and whose access is nevertheless checked at compile time (like an Ada
+subtype whose bounds are computed at elaboration). The dimension belongs to a _tag_ type and
+can be set once. An index for that tag can only be made by a checked function, so an index that
+exists is valid for every array of that tag, forever, and access needs no check.
+
+```cpp
+struct rows {};                                   // the tag
+atbdim<rows>::set(read_the_size());               // once; not thread safe, do it before threads
+atbarray<double, rows> a;
+for (auto i : atbidx<rows>::range()) { a.set(i, 1.0); }
+if (auto i = atbidx<rows>::be<std::optional>(n)) { a.set(*i, 2.0); }
+```
+
+If the dimension is used before it is set, it is 0 (and can not be set any more), and every
+`be()` fails. There is no default constructor and no integer constructor for `atbidx`. An
+`atbarray` is copied deep; there are no move operations, so a "move" copies and the source
+stays usable. Everything that is a `cobarray`, including the iterators, is there.
+
+## Pools, ring buffers, bitsets and hash tables
+
+No iterators here (each has `for_each`), and all of them hold any type of element, like the lists.
+
+* `cobpool<T, N>`: an object pool. `make(args...)` gives a handle (`nil` if full), `drop(handle)`
+  is `false` for a stale handle, `with(handle, f)`, `get(handle)`, `live(handle)`. Handles stay
+  valid while other objects are made and dropped, also in a copy of the pool.
+* `cobring<T, N>`: a first in, first out queue. `push_back`/`emplace_back` fail when full,
+  `emplace_over` drops the oldest instead, `pop_front<V>()`, `front<V>()`, `back<V>()`, `at<V>(i)`.
+* `cobbitset<N>`: bits indexed by `cobint<0, N-1>`, so `b.test(cobic<N>)` or `b.set(3)` do not
+  compile; `maybe_set(int)` checks. All of it is `constexpr`. `first<V>()` and `next<V>(i)` walk the
+  set bits.
+* `cobhash<K, V, N, H, E>`: open addressing with linear probing, and deletion by backward shift, so
+  there are no tombstones and it can be filled completely. `insert`, `insert_or_assign`, `erase`,
+  `contains`, `find<V>(k)` (a copy), `with(k, f)`.
+
+```cpp
+cobhash<std::string, int, 64> h;
+h.insert("one", 1);
+auto one = h.find<std::optional>("one");   // std::optional<int>{1}
+```
 
 ## Timers
 
@@ -590,8 +741,7 @@ How to choose which one to use:
    well, with no precision loss and such.
 2. For up to a few hundred timers, use the wheel to get better
    performance, reducing the list of each spoke to several dozen
-   timers. Choose the quick variant if you can accept the loss of
-   precision. The number of spokes should not be large, in general, 10
+   timers. The number of spokes should not be large, in general, 10
    is a good choice.
 3. If you are OK with progressive loss of precision, regular mill
    is the best. If you need a smaller footprint and have a way to
@@ -607,11 +757,9 @@ more timers with the same ID and then stop by that same ID, there
 are no guarantees which of the two will be stopped.
 
 Also, there is no "garbage collection" here. If a timer expires and
-then you stop it by index, strange thing happen.  If there is a new
-timer started with the same index, you will stop that new timer. If 
-no timer with said index is started currently, there's a chance you
-will corrupt the timer list. Do _not_ stop a timer by index, unless 
-you are sure said timer is still running.
+then you stop it by index, nothing happens, unless a new timer was
+started in the meantime and got the same index. In that case you will
+stop that new timer.
 
 If you push timer expiry to some event queue, then there is a chance
 user might try to stop said timer while in queue. There's no support
