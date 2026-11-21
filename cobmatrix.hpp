@@ -7,26 +7,24 @@
 #define INC_COBMATRIX
 
 
-#include "cobarray.hpp"
-#include "cobi.hpp"
+#include "cobbound.hpp"
 
 #include <algorithm>
 #include <cstddef>
 #include <iterator>
+#include <type_traits>
 #include <utility>
 
 
-template <class T, int M, int N> struct cobmatrix {
-    static_assert(M > 0, "Matrix must have at least one row");
-    static_assert(N > 0, "Matrix must have at least one column");
-
+// `R` is the bound of the rows and `C` the bound of the columns
+template <class T, class R, class C> struct bndmatrix {
     using value_type      = T;
     using difference_type = std::ptrdiff_t;
     using pointer         = T*;
     using reference       = T&;
 
-    using row    = cobi<int, 0, M - 1>;
-    using column = cobi<int, 0, N - 1>;
+    using row    = typename R::index;
+    using column = typename C::index;
     struct index {
         row    irow;
         column icolumn;
@@ -45,293 +43,202 @@ template <class T, int M, int N> struct cobmatrix {
     using taken  = taken_t<T>;
     using ctaken = taken_t<T const>;
 
-    constexpr bool     empty() const noexcept { return false; }
-    constexpr unsigned size() const noexcept { return M * N; }
-    constexpr unsigned max_size() const noexcept { return M * N; }
+    static constexpr auto rows() { return R::size(); }
+    static constexpr auto columns() { return C::size(); }
 
-    constexpr ctaken grab(index i) const { return d[i.irow.get()][i.icolumn.get()]; }
-    constexpr taken grab(index i) { return d[i.irow.get()][i.icolumn.get()]; }
-    constexpr T get(index i) const { return d[i.irow.get()][i.icolumn.get()]; }
-    constexpr T set(index i, T const& t)
+    constexpr bool empty() const noexcept { return total() == 0; }
+    constexpr auto size() const noexcept { return R::size() * C::size(); }
+    constexpr auto max_size() const noexcept { return size(); }
+
+    constexpr ctaken grab(index i) const { return cell(i); }
+    constexpr taken grab(index i) { return cell(i); }
+    constexpr T get(index i) const { return cell(i); }
+    constexpr T set(index i, T const& t) { return cell(i) = t; }
+    constexpr T set(index i, T&& t) { return cell(i) = std::move(t); }
+    template <class U1, class U2> constexpr bool maybe_set(U1 m, U2 n, T const& t)
     {
-        return d[i.irow.get()][i.icolumn.get()] = t;
-    }
-    constexpr T set(index i, T&& t)
-    {
-        return d[i.irow.get()][i.icolumn.get()] = std::move(t);
-    }
-    constexpr bool maybe_set(int m, int n, T const& t)
-    {
-        index idx;
-        if (idx.irow.be(m) && idx.icolumn.be(n)) {
-            d[m][n] = t;
-            return true;
+        if (std::cmp_less(m, 0) || !std::cmp_less(m, R::size()) || std::cmp_less(n, 0)
+            || !std::cmp_less(n, C::size())) {
+            return false;
         }
-        return false;
+        d.data()[static_cast<std::size_t>(m) * C::size() + static_cast<std::size_t>(n)] = t;
+        return true;
     }
     template <class V, class U = T>
     constexpr std::enable_if_t<std::is_class_v<U>, V> get(index i, V U::*m) const
     {
-        return d[i.irow.get()][i.icolumn.get()].*m;
+        return cell(i).*m;
     }
     template <class V, class U = T>
     constexpr std::enable_if_t<std::is_class_v<U>, V> set(index i, V U::*m, V const& v)
     {
-        return d[i.irow.get()][i.icolumn.get()].*m = v;
+        return cell(i).*m = v;
     }
 
     // Every element a copy of v
-    static constexpr cobmatrix filled(T const& v)
+    static constexpr bndmatrix filled(T const& v)
     {
-        cobmatrix r;
-        for (int m = 0; m < M; ++m) {
-            for (int n = 0; n < N; ++n) {
-                r.d[m][n] = v;
-            }
-        }
+        bndmatrix r;
+        r.fill(v);
         return r;
     }
 
     // Element at index i is f(i)
-    template <class F> static constexpr cobmatrix generate(F f)
+    template <class F> static constexpr bndmatrix generate(F f)
     {
-        cobmatrix r;
-        index     i;
-        do {
-            i.icolumn = column{};
-            do {
-                r.d[i.irow.get()][i.icolumn.get()] = f(i);
-            } while (i.icolumn.advance());
-        } while (i.irow.advance());
+        bndmatrix r;
+        for (auto m : R::indices()) {
+            for (auto n : C::indices()) {
+                r.cell({ m, n }) = f(index{ m, n });
+            }
+        }
         return r;
     }
 
-    void fill(T const& v)
+    constexpr void fill(T const& v)
     {
-        for (auto p = begin(); p != end(); ++p) {
-            *p = v;
+        for (std::ptrdiff_t i = 0; i < total(); ++i) {
+            d.data()[i] = v;
         }
     }
 
-    constexpr bool operator==(cobmatrix const& x) const
+    constexpr bool operator==(bndmatrix const& x) const
     {
-        for (int m = 0; m < M; ++m) {
-            if (!std::equal(d[m], d[m] + N, x.d[m])) {
-                return false;
-            }
-        }
-        return true;
+        return std::equal(d.data(), d.data() + total(), x.d.data());
     }
 
-    constexpr T front() const { return d[0][0]; }
-    constexpr T back() const { return d[M - 1][N - 1]; }
+    constexpr T front() const { return d.data()[0]; }
+    constexpr T back() const { return d.data()[(total() > 0) ? total() - 1 : 0]; }
 
-    constexpr void swap(cobmatrix& x)
+    constexpr void swap(bndmatrix& x)
     {
-        for (int m = 0; m < M; ++m) {
-            for (int n = 0; n < N; ++n) {
-                std::swap(d[m][n], x.d[m][n]);
-            }
+        for (std::ptrdiff_t i = 0; i < total(); ++i) {
+            std::swap(d.data()[i], x.d.data()[i]);
         }
     }
 
-    static constexpr int rows() { return M; }
-    static constexpr int columns() { return N; }
-
-    constexpr cobarray<T, N> get_row(row r) const
+    constexpr typename C::template values<T> get_row(row r) const
     {
-        cobarray<T, N> rslt;
-        for (int n = 0; n < N; ++n) {
-            rslt.maybe_set(n, d[r.get()][n]);
+        typename C::template values<T> rslt;
+        for (auto n : C::indices()) {
+            rslt.set(n, cell({ r, n }));
         }
         return rslt;
     }
-    constexpr void set_row(row r, cobarray<T, N> const& v)
+    constexpr void set_row(row r, typename C::template values<T> const& v)
     {
-        for (int n = 0; n < N; ++n) {
-            column c;
-            c.be(n);
-            d[r.get()][n] = v.get(c);
+        for (auto n : C::indices()) {
+            cell({ r, n }) = v.get(n);
         }
     }
 
-    class CI;
-    class I {
-        cobmatrix* r;
-        T (*row)[N];
-        T* p;
+    // The iterators differ in constness only: `M` is the matrix, `U` the
+    // element. They go row by row and keep the offset from the first
+    // element, in [0, size]; at the size, there is the safety spot.
+    template <class M, class U> class iter {
+        M*             r;
+        std::ptrdiff_t at;
 
     public:
         using value_type        = T;
         using difference_type   = std::ptrdiff_t;
-        using pointer           = T*;
-        using reference         = T&;
+        using pointer           = U*;
+        using reference         = U&;
         using iterator_category = std::random_access_iterator_tag;
 
-        I() : I(&nowhere(), M * N) {}
-        I operator++(int) { I t = *this; ++*this; return t; }
-        I operator--(int) { I t = *this; --*this; return t; }
+        iter() : r(&nowhere()), at(total()) {}
+        // A constant iterator from one that is not
+        template <class M2, class U2>
+            requires(std::is_const_v<M> && !std::is_const_v<M2>)
+        iter(iter<M2, U2> const& x) : r(x.r), at(x.at) {}
+
+        iter& operator++()
+        {
+            if (at < total()) {
+                ++at;
+            }
+            return *this;
+        }
+        iter operator++(int) { iter t = *this; ++*this; return t; }
+        iter& operator--()
+        {
+            if (at > 0) {
+                --at;
+            }
+            return *this;
+        }
+        iter operator--(int) { iter t = *this; --*this; return t; }
+        iter operator+(difference_type x) const { return { r, forth(at, x) }; }
+        iter& operator+=(difference_type x) { return *this = (*this) + x; }
+        iter operator-(difference_type x) const { return { r, back(at, x) }; }
+        iter& operator-=(difference_type x) { return *this = (*this) - x; }
+        difference_type operator-(iter const& x) const { return (r == x.r) ? at - x.at : 0; }
         reference operator[](difference_type n) const { return *(*this + n); }
-        friend I operator+(difference_type n, I const& i) { return i + n; }
+        friend iter operator+(difference_type n, iter const& i) { return i + n; }
 
-        I& operator++()
-        {
-            if (row - r->d < M) {
-                if (++p - *row == N) {
-                    ++row;
-                    p = *row;
-                }
-            }
-            return *this;
-        }
-        I& operator--()
-        {
-            if (p == *row) {
-                if (row > r->d) {
-                    --row;
-                    p = (*row) + (N - 1);
-                }
-            }
-            else {
-                --p;
-            }
-            return *this;
-        }
-        I operator+(difference_type x) const { return { r, forth(at(), x) }; }
-        I& operator+=(difference_type x) { return *this = (*this) + x; }
-        I operator-(difference_type x) const { return { r, back(at(), x) }; }
-        I& operator-=(difference_type x) { return *this = (*this) - x; }
-        difference_type operator-(I const& x) const
-        {
-            return (r == x.r) ? at() - x.at() : 0;
-        }
+        U& operator*() const { return r->d.data()[at]; }
+        U* operator->() const { return &**this; }
 
-        T& operator*() const { return *p; }
-        T* operator->() const { return p; }
+        bool operator==(iter const& x) const { return (r == x.r) && (at == x.at); }
+        bool operator<(iter const& x) const { return (r == x.r) && (at < x.at); }
+        bool operator<=(iter const& x) const { return (r == x.r) && (at <= x.at); }
+        bool operator>(iter const& x) const { return (r == x.r) && (at > x.at); }
+        bool operator>=(iter const& x) const { return (r == x.r) && (at >= x.at); }
 
-        bool operator==(I const& x) const { return (r == x.r) && (p == x.p); }
-        bool operator<(I const& x) const { return (r == x.r) && (at() < x.at()); }
-        bool operator<=(I const& x) const { return (r == x.r) && (at() <= x.at()); }
-        bool operator>(I const& x) const { return (r == x.r) && (at() > x.at()); }
-        bool operator>=(I const& x) const { return (r == x.r) && (at() >= x.at()); }
+        friend struct bndmatrix;
+        template <class, class> friend class iter;
 
-        friend struct cobmatrix;
-        friend class CI;
-
-    protected:
-        I(cobmatrix const* r_, difference_type at)
-            : r(const_cast<cobmatrix*>(r_))
-            , row(r->d + at / N)
-            , p(*row + at % N)
-        {
-        }
-        // Offset from the first element, in [0, M * N]
-        difference_type at() const { return (row - r->d) * N + (p - *row); }
+    private:
+        iter(M* r_, difference_type at_) : r(r_), at(at_) {}
     };
-    class CI {
-        cobmatrix const* r;
-        T const (*row)[N];
-        T const* p;
-
-    public:
-        using value_type        = T;
-        using difference_type   = std::ptrdiff_t;
-        using pointer           = T const*;
-        using reference         = T const&;
-        using iterator_category = std::random_access_iterator_tag;
-
-        CI() : CI(&nowhere(), M * N) {}
-        CI(I const& x) : CI(x.r, x.at()) {}
-        CI operator++(int) { CI t = *this; ++*this; return t; }
-        CI operator--(int) { CI t = *this; --*this; return t; }
-        reference operator[](difference_type n) const { return *(*this + n); }
-        friend CI operator+(difference_type n, CI const& i) { return i + n; }
-
-        CI& operator++()
-        {
-            if (row - r->d < M) {
-                if (++p - *row == N) {
-                    ++row;
-                    p = *row;
-                }
-            }
-            return *this;
-        }
-        CI& operator--()
-        {
-            if (p == *row) {
-                if (row > r->d) {
-                    --row;
-                    p = (*row) + (N - 1);
-                }
-            }
-            else {
-                --p;
-            }
-            return *this;
-        }
-        CI operator+(difference_type x) const { return { r, forth(at(), x) }; }
-        CI& operator+=(difference_type x) { return *this = (*this) + x; }
-        CI operator-(difference_type x) const { return { r, back(at(), x) }; }
-        CI& operator-=(difference_type x) { return *this = (*this) - x; }
-        difference_type operator-(CI const& x) const
-        {
-            return (r == x.r) ? at() - x.at() : 0;
-        }
-
-        T const& operator*() const { return *p; }
-        T const* operator->() const { return p; }
-
-        bool operator==(CI const& x) const { return (r == x.r) && (p == x.p); }
-        bool operator<(CI const& x) const { return (r == x.r) && (at() < x.at()); }
-        bool operator<=(CI const& x) const { return (r == x.r) && (at() <= x.at()); }
-        bool operator>(CI const& x) const { return (r == x.r) && (at() > x.at()); }
-        bool operator>=(CI const& x) const { return (r == x.r) && (at() >= x.at()); }
-
-        friend struct cobmatrix;
-
-    protected:
-        CI(cobmatrix const* r_, difference_type at)
-            : r(r_)
-            , row(r->d + at / N)
-            , p(*row + at % N)
-        {
-        }
-        // Offset from the first element, in [0, M * N]
-        difference_type at() const { return (row - r->d) * N + (p - *row); }
-    };
-
-    using iterator = I;
+    using I              = iter<bndmatrix, T>;
+    using CI             = iter<bndmatrix const, T const>;
+    using iterator       = I;
     using const_iterator = CI;
 
-    constexpr I  begin() { return I{ this, 0 }; }
-    constexpr I  end() { return I{ this, M * N }; }
-    constexpr CI begin() const { return CI{ this, 0 }; }
-    constexpr CI end() const { return CI{ this, M * N }; }
-    constexpr CI cbegin() const { return CI{ this, 0 }; }
-    constexpr CI cend() const { return CI{ this, M * N }; }
-
+    I  begin() { return I{ this, 0 }; }
+    I  end() { return I{ this, total() }; }
+    CI begin() const { return CI{ this, 0 }; }
+    CI end() const { return CI{ this, total() }; }
+    CI cbegin() const { return CI{ this, 0 }; }
+    CI cend() const { return CI{ this, total() }; }
 
 private:
-    static cobmatrix& nowhere() { static thread_local cobmatrix none{}; return none; }
-    // Moving an iterator at offset `at` (in [0, M * N]) by `x`. All that would
-    // end up out of bounds lands on the safety spot (offset M * N).
+    static bndmatrix& nowhere() { static thread_local bndmatrix none{}; return none; }
+
+    static constexpr std::ptrdiff_t total()
+    {
+        return static_cast<std::ptrdiff_t>(R::size()) * static_cast<std::ptrdiff_t>(C::size());
+    }
+    constexpr T& cell(index i)
+    {
+        return d.data()[static_cast<std::size_t>(i.irow.get()) * C::size() + static_cast<std::size_t>(i.icolumn.get())];
+    }
+    constexpr T const& cell(index i) const
+    {
+        return d.data()[static_cast<std::size_t>(i.irow.get()) * C::size() + static_cast<std::size_t>(i.icolumn.get())];
+    }
+
+    // Moving an iterator at offset `at` (in [0, size]) by `x`. All that would
+    // end up out of bounds lands on the safety spot (offset size).
     static constexpr std::ptrdiff_t forth(std::ptrdiff_t at, std::ptrdiff_t x)
     {
         if (x >= 0) {
-            return (x <= M * N - at) ? at + x : M * N;
+            return (x <= total() - at) ? at + x : total();
         }
-        return (x >= -at) ? at + x : M * N;
+        return (x >= -at) ? at + x : total();
     }
     static constexpr std::ptrdiff_t back(std::ptrdiff_t at, std::ptrdiff_t x)
     {
         if (x >= 0) {
-            return (x <= at) ? at - x : M * N;
+            return (x <= at) ? at - x : total();
         }
-        return (x >= at - M * N) ? at - x : M * N;
+        return (x >= at - total()) ? at - x : total();
     }
 
-    T d[M + 1][N];
+    typename R::template flat<T, C> d;
 };
+
+template <class T, int M, int N> using cobmatrix = bndmatrix<T, cobbound<M>, cobbound<N>>;
 
 #endif // define      INC_COBMATRIX

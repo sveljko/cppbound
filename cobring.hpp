@@ -7,41 +7,40 @@
 #define      INC_COBRING
 
 
-#include "cobstore.hpp"
+#include "cobbound.hpp"
 
 #include <utility>
 
 
 // First in, first out, capacity N
-template <class T, int N>
-struct cobring {
-    static_assert(N > 0, "Ring must have some capacity");
-
+template <class T, class B>
+struct bndring {
     using value_type = T;
-    using index      = cobint<0, N - 1>;
+    using size_type  = typename B::size_type;
+    using index      = typename B::slot;
 
-    cobring() = default;
-    cobring(cobring const& x)
+    bndring() = default;
+    bndring(bndring const& x)
     {
-        for (unsigned i = 0; i < x.count; ++i) {
+        for (size_type i = 0; i < x.count; ++i) {
             emplace_back(x.store.at(x.slot(i)));
         }
     }
-    cobring& operator=(cobring const& x)
+    bndring& operator=(bndring const& x)
     {
         if (this != &x) {
             clear();
-            for (unsigned i = 0; i < x.count; ++i) {
+            for (size_type i = 0; i < x.count; ++i) {
                 emplace_back(x.store.at(x.slot(i)));
             }
         }
         return *this;
     }
-    ~cobring() { clear(); }
+    ~bndring() { clear(); }
 
     template <class... A> bool emplace_back(A&&... a)
     {
-        if (count == N) {
+        if (count == B::size()) {
             return false;
         }
         store.make(slot(count), std::forward<A>(a)...);
@@ -54,7 +53,7 @@ struct cobring {
     // If full, drops the oldest first, so it always succeeds
     template <class... A> void emplace_over(A&&... a)
     {
-        if (count == N) {
+        if (count == B::size()) {
             drop_front();
         }
         emplace_back(std::forward<A>(a)...);
@@ -78,7 +77,7 @@ struct cobring {
         return (count == 0) ? V<T>{} : V<T>(store.at(slot(count - 1)));
     }
     // The i-th oldest
-    template <template <class> class V> V<T> at(unsigned i) const
+    template <template <class> class V> V<T> at(size_type i) const
     {
         return (i >= count) ? V<T>{} : V<T>(store.at(slot(i)));
     }
@@ -94,21 +93,21 @@ struct cobring {
     // Oldest to newest
     template <class F> void for_each(F&& f)
     {
-        for (unsigned i = 0; i < count; ++i) {
+        for (size_type i = 0; i < count; ++i) {
             f(store.at(slot(i)));
         }
     }
     template <class F> void for_each(F&& f) const
     {
-        for (unsigned i = 0; i < count; ++i) {
+        for (size_type i = 0; i < count; ++i) {
             f(store.at(slot(i)));
         }
     }
 
-    unsigned size() const noexcept { return count; }
-    unsigned max_size() const noexcept { return N; }
+    size_type size() const noexcept { return count; }
+    size_type max_size() const noexcept { return B::size(); }
     bool     empty() const noexcept { return count == 0; }
-    bool     full() const noexcept { return count == N; }
+    bool     full() const noexcept { return count == B::size(); }
 
     void clear()
     {
@@ -119,11 +118,13 @@ struct cobring {
     }
 
 private:
-    // The slot of the i-th oldest element, `i` in [0, N)
-    index slot(unsigned i) const
+    // The slot of the i-th oldest element, `i` less than the capacity
+    index slot(size_type i) const
     {
         index rslt;
-        rslt.be(static_cast<int>((static_cast<unsigned>(head.get()) + i) % static_cast<unsigned>(N)));
+        if (B::size() > 0) {
+            rslt.be((static_cast<size_type>(head.get()) + i) % B::size());
+        }
         return rslt;
     }
     void drop_front()
@@ -133,10 +134,12 @@ private:
         --count;
     }
 
-    cobstore<T, N> store;
-    index          head;
-    unsigned       count = 0;
+    typename B::template store<T> store;
+    index                         head;
+    size_type                     count = 0;
 };
+
+template <class T, int N> using cobring = bndring<T, cobbound<N>>;
 
 
 #endif // !defined(INC_COBRING)

@@ -7,6 +7,7 @@
 #define INC_COBHLP
 
 #include <cstdint>
+#include <utility>
 
 namespace cobhlp {
 
@@ -45,6 +46,15 @@ struct xorshift32 {
     std::uint32_t s = 2463534242u;
     constexpr std::uint32_t operator()() { s ^= s << 13; s ^= s >> 17; s ^= s << 5; return s; }
 };
+// What a map (or a cache) keeps for a key. The key can not be changed, the value can.
+template <class K, class V> struct keyval {
+    K const key;
+    V       value;
+
+    keyval() : key(), value() {}
+    template <class... A> explicit keyval(K const& k, A&&... a) : key(k), value(std::forward<A>(a)...) {}
+};
+
 } // namespace cobhlp
 
 

@@ -208,8 +208,12 @@ void unsetiterators()
     *it = 1;
     ++it;
     --cit;
+    it += 5;
+    it = it - 3;
+    CHECK(it - it == 0 && cit[2] == 1);     // all of them refer to the same safety spot
     CHECK(atbdim<tag>::set(3)); // the iterators did not freeze it
     CHECK(atbdim<tag>::get() == 3);
+    CHECK(!atbdim<tag>::set(4));
 }
 
 int main(int argc, char**)

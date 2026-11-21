@@ -7,95 +7,86 @@
 #define      INC_COBBITSET
 
 
-#include "cobi.hpp"
+#include "cobbound.hpp"
 
 #include <bit>
 #include <cstdint>
+#include <utility>
 
 
-// Bits indexed by a range bound integer
-template <int N>
-struct cobbitset {
-    static_assert(N > 0, "Bitset must have some bits");
+// Bits indexed by an index that is known to be within the bound
+template <class B>
+struct bndbitset {
+    using size_type = typename B::size_type;
+    using index     = typename B::index;
 
-    using index = cobint<0, N - 1>;
-
-    constexpr bool test(index i) const { return ((w[i.get() / 64] >> (i.get() % 64)) & 1u) != 0; }
-    constexpr void set(index i, bool v = true)
-    {
-        const std::uint64_t bit = std::uint64_t{ 1 } << (i.get() % 64);
-        if (v) {
-            w[i.get() / 64] |= bit;
-        }
-        else {
-            w[i.get() / 64] &= ~bit;
-        }
-    }
-    constexpr void reset(index i) { set(i, false); }
-    constexpr void flip(index i) { w[i.get() / 64] ^= std::uint64_t{ 1 } << (i.get() % 64); }
+    constexpr bool test(index i) const { return bit(at(i)); }
+    constexpr void set(index i, bool v = true) { put(at(i), v); }
+    constexpr void reset(index i) { put(at(i), false); }
+    constexpr void flip(index i) { put(at(i), !bit(at(i))); }
 
     constexpr void set()
     {
-        for (auto& x : w) { x = ~std::uint64_t{ 0 }; }
+        for (unsigned i = 0; i < w.count(); ++i) { w[i] = ~std::uint64_t{ 0 }; }
         mask();
     }
     constexpr void reset()
     {
-        for (auto& x : w) { x = 0; }
+        for (unsigned i = 0; i < w.count(); ++i) { w[i] = 0; }
     }
     constexpr void flip()
     {
-        for (auto& x : w) { x = ~x; }
+        for (unsigned i = 0; i < w.count(); ++i) { w[i] = ~w[i]; }
         mask();
     }
-    constexpr bool maybe_set(int i, bool v = true)
+    // false if there is no such bit
+    template <class U> constexpr bool maybe_set(U i, bool v = true)
     {
-        index idx;
-        if (idx.be(i)) {
-            set(idx, v);
-            return true;
+        if (std::cmp_less(i, 0) || !std::cmp_less(i, B::size())) {
+            return false;
         }
-        return false;
+        put(static_cast<size_type>(i), v);
+        return true;
     }
 
-    constexpr unsigned count() const
+    constexpr size_type count() const
     {
-        unsigned c = 0;
-        for (auto x : w) { c += static_cast<unsigned>(std::popcount(x)); }
+        size_type c = 0;
+        for (unsigned i = 0; i < w.count(); ++i) { c += static_cast<size_type>(std::popcount(w[i])); }
         return c;
     }
     constexpr bool any() const { return count() > 0; }
     constexpr bool none() const { return count() == 0; }
-    constexpr bool all() const { return count() == static_cast<unsigned>(N); }
-    static constexpr unsigned size() { return N; }
+    constexpr bool all() const { return count() == B::size(); }
+    static constexpr size_type size() { return B::size(); }
 
-    constexpr cobbitset& operator&=(cobbitset const& x)
+    constexpr bndbitset& operator&=(bndbitset const& x)
     {
-        for (int i = 0; i < words; ++i) { w[i] &= x.w[i]; }
+        for (unsigned i = 0; i < w.count(); ++i) { w[i] &= x.w[i]; }
         return *this;
     }
-    constexpr cobbitset& operator|=(cobbitset const& x)
+    constexpr bndbitset& operator|=(bndbitset const& x)
     {
-        for (int i = 0; i < words; ++i) { w[i] |= x.w[i]; }
+        for (unsigned i = 0; i < w.count(); ++i) { w[i] |= x.w[i]; }
         return *this;
     }
-    constexpr cobbitset& operator^=(cobbitset const& x)
+    constexpr bndbitset& operator^=(bndbitset const& x)
     {
-        for (int i = 0; i < words; ++i) { w[i] ^= x.w[i]; }
+        for (unsigned i = 0; i < w.count(); ++i) { w[i] ^= x.w[i]; }
         return *this;
     }
-    constexpr cobbitset operator~() const
+    constexpr bndbitset operator~() const
     {
-        cobbitset r = *this;
+        bndbitset r = *this;
         r.flip();
         return r;
     }
-    friend constexpr cobbitset operator&(cobbitset x, cobbitset const& y) { return x &= y; }
-    friend constexpr cobbitset operator|(cobbitset x, cobbitset const& y) { return x |= y; }
-    friend constexpr cobbitset operator^(cobbitset x, cobbitset const& y) { return x ^= y; }
-    constexpr bool operator==(cobbitset const& x) const
+    friend constexpr bndbitset operator&(bndbitset x, bndbitset const& y) { return x &= y; }
+    friend constexpr bndbitset operator|(bndbitset x, bndbitset const& y) { return x |= y; }
+    friend constexpr bndbitset operator^(bndbitset x, bndbitset const& y) { return x ^= y; }
+    constexpr bool operator==(bndbitset const& x) const
     {
-        for (int i = 0; i < words; ++i) {
+        for (unsigned i = 0; i < w.count(); ++i) {
             if (w[i] != x.w[i]) {
                 return false;
             }
@@ -108,52 +99,64 @@ struct cobbitset {
     // The lowest set bit above `after`
     template <template <class> class V> constexpr V<index> next(index after) const
     {
-        return from<V>(after.get() + 1);
+        return from<V>(static_cast<size_type>(after.get()) + 1);
     }
     // Calls f(index) for each set bit, ascending
     template <class F> constexpr void for_each(F&& f) const
     {
-        for (int b = 0; b < N; ++b) {
-            index i;
-            if (i.be(b) && test(i)) {
+        for (auto i : B::indices()) {
+            if (test(i)) {
                 f(i);
             }
         }
     }
 
 private:
-    static constexpr int words = (N + 63) / 64;
+    // The number of the bit, which is less than the size
+    static constexpr size_type at(index i) { return static_cast<size_type>(i.get()); }
+    constexpr bool bit(size_type i) const { return ((w[static_cast<unsigned>(i / 64)] >> (i % 64)) & 1u) != 0; }
+    constexpr void put(size_type i, bool v)
+    {
+        const std::uint64_t mask = std::uint64_t{ 1 } << (i % 64);
+        if (v) {
+            w[static_cast<unsigned>(i / 64)] |= mask;
+        }
+        else {
+            w[static_cast<unsigned>(i / 64)] &= ~mask;
+        }
+    }
 
     // The unused high bits of the last word are always 0
     constexpr void mask()
     {
-        if constexpr ((N % 64) != 0) {
-            w[words - 1] &= (std::uint64_t{ 1 } << (N % 64)) - 1;
+        if ((B::size() % 64) != 0) {
+            w[w.count() - 1] &= (std::uint64_t{ 1 } << (B::size() % 64)) - 1;
         }
     }
 
     // The lowest set bit at `start` or above
-    template <template <class> class V> constexpr V<index> from(int start) const
+    template <template <class> class V> constexpr V<index> from(size_type start) const
     {
-        if (start >= N) {
+        if (start >= B::size()) {
             return {};
         }
-        for (int i = start / 64; i < words; ++i) {
+        for (unsigned i = static_cast<unsigned>(start / 64); i < w.count(); ++i) {
             std::uint64_t x = w[i];
             if (i == start / 64) {
                 x &= ~std::uint64_t{ 0 } << (start % 64);
             }
             if (x != 0) {
-                index r;
-                r.be(i * 64 + std::countr_zero(x));
-                return r;
+                using number = decltype(std::declval<index>().get());
+                return index::template be<V>(static_cast<number>(size_type{ i } * 64 + static_cast<unsigned>(std::countr_zero(x))));
             }
         }
         return {};
     }
 
-    std::uint64_t w[(N + 63) / 64] = {};
+    typename B::words w;
 };
+
+template <int N> using cobbitset = bndbitset<cobbound<N>>;
 
 
 #endif // !defined(INC_COBBITSET)

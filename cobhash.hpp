@@ -7,8 +7,7 @@
 #define      INC_COBHASH
 
 
-#include "cobarray.hpp"
-#include "cobstore.hpp"
+#include "cobbound.hpp"
 
 #include <cstddef>
 #include <functional>
@@ -16,13 +15,12 @@
 
 
 // Open addressing, linear probing, deletion by backward shift (no
-// tombstones). Capacity N entries; it may be filled completely.
-template <class K, class V, int N, class H = std::hash<K>, class E = std::equal_to<K>>
-struct cobhash {
-    static_assert(N > 0, "Hash table must have some capacity");
-
-    using key_type   = K;
+// tombstones). It may be filled completely.
+template <class K, class V, class B, class H = std::hash<K>, class E = std::equal_to<K>>
+struct bndhash {
+    using key_type    = K;
     using mapped_type = V;
+    using size_type   = typename B::size_type;
 
     struct entry {
         K key;
@@ -30,9 +28,9 @@ struct cobhash {
         entry(K const& k, V v) : key(k), value(std::move(v)) {}
     };
 
-    cobhash() { used.fill(false); }
-    cobhash(cobhash const& x) : used(x.used), count(x.count) { copy_entries(x); }
-    cobhash& operator=(cobhash const& x)
+    bndhash() { used.fill(false); }
+    bndhash(bndhash const& x) : used(x.used), count(x.count) { copy_entries(x); }
+    bndhash& operator=(bndhash const& x)
     {
         if (this != &x) {
             clear();
@@ -42,28 +40,26 @@ struct cobhash {
         }
         return *this;
     }
-    ~cobhash() { clear(); }
+    ~bndhash() { clear(); }
 
     // false if the key is there, or the table is full
     bool insert(K const& k, V v)
     {
-        if ((count == N) || (find_slot(k) >= 0)) {
+        if (full() || (find_slot(k) != none())) {
             return false;
         }
-        int s = home_of(k);
-        for (int step = 0; step < N; ++step, s = (s + 1) % N) {
-            if (!is_used(s)) {
-                place(s, k, std::move(v));
-                return true;
-            }
+        size_type s = home_of(k);
+        while (is_used(s)) {    // not full, so there is a slot
+            s = after(s);
         }
-        return false;
+        place(s, k, std::move(v));
+        return true;
     }
     // false only if the key is absent and the table is full
     bool insert_or_assign(K const& k, V v)
     {
-        const int s = find_slot(k);
-        if (s >= 0) {
+        const size_type s = find_slot(k);
+        if (s != none()) {
             val_at(s) = std::move(v);
             return true;
         }
@@ -71,18 +67,18 @@ struct cobhash {
     }
     bool erase(K const& k)
     {
-        int i = find_slot(k);
-        if (i < 0) {
+        size_type i = find_slot(k);
+        if (i == none()) {
             return false;
         }
         drop(i);
-        int j = i;
+        size_type j = i;
         for (;;) {
-            j = (j + 1) % N;
+            j = after(j);
             if (!is_used(j)) {
                 break;
             }
-            const int home = home_of(key_at(j));
+            const size_type home = home_of(key_at(j));
             // Leave the entry at j alone if its home lies cyclically in (i, j]
             const bool stays = (i <= j) ? ((i < home) && (home <= j))
                                         : ((i < home) || (home <= j));
@@ -95,17 +91,17 @@ struct cobhash {
         return true;
     }
 
-    bool contains(K const& k) const { return find_slot(k) >= 0; }
+    bool contains(K const& k) const { return find_slot(k) != none(); }
     // A copy of the value, or nothing
     template <template <class> class O> O<V> find(K const& k) const
     {
-        const int s = find_slot(k);
-        return (s >= 0) ? O<V>(val_at(s)) : O<V>{};
+        const size_type s = find_slot(k);
+        return (s != none()) ? O<V>(val_at(s)) : O<V>{};
     }
     template <class F> bool with(K const& k, F&& f)
     {
-        const int s = find_slot(k);
-        if (s >= 0) {
+        const size_type s = find_slot(k);
+        if (s != none()) {
             f(val_at(s));
             return true;
         }
@@ -113,8 +109,8 @@ struct cobhash {
     }
     template <class F> bool with(K const& k, F&& f) const
     {
-        const int s = find_slot(k);
-        if (s >= 0) {
+        const size_type s = find_slot(k);
+        if (s != none()) {
             f(val_at(s));
             return true;
         }
@@ -123,67 +119,77 @@ struct cobhash {
     // In slot order
     template <class F> void for_each(F&& f)
     {
-        for (int s = 0; s < N; ++s) {
-            if (is_used(s)) {
-                f(key_at(s), val_at(s));
+        for (auto i : B::slots()) {
+            if (used.get(i)) {
+                f(store.at(i).key, store.at(i).value);
             }
         }
     }
     template <class F> void for_each(F&& f) const
     {
-        for (int s = 0; s < N; ++s) {
-            if (is_used(s)) {
-                f(key_at(s), val_at(s));
+        for (auto i : B::slots()) {
+            if (used.get(i)) {
+                f(store.at(i).key, store.at(i).value);
             }
         }
     }
 
-    unsigned size() const noexcept { return count; }
-    unsigned max_size() const noexcept { return N; }
-    bool     empty() const noexcept { return count == 0; }
-    bool     full() const noexcept { return count == N; }
+    size_type size() const noexcept { return count; }
+    size_type max_size() const noexcept { return B::size(); }
+    bool      empty() const noexcept { return count == 0; }
+    bool      full() const noexcept { return count == B::size(); }
 
     void clear()
     {
-        for (int s = 0; s < N; ++s) {
-            if (is_used(s)) {
-                drop(s);
+        for (auto i : B::slots()) {
+            if (used.get(i)) {
+                store.drop(i);
+                used.set(i, false);
             }
         }
+        count = 0;
     }
 
 private:
-    using index = cobint<0, N - 1>;
+    using index = typename B::slot;
 
-    static int home_of(K const& k)
+    // Slots are numbered from 0; this number stands for "no slot"
+    static size_type none() { return B::size(); }
+    // Only called when there is some capacity
+    static size_type home_of(K const& k)
     {
-        return static_cast<int>(H{}(k) % static_cast<std::size_t>(N));
+        return static_cast<size_type>(H{}(k) % static_cast<std::size_t>(B::size()));
     }
-    bool is_used(int s) const
+    static size_type after(size_type s) { return (s + 1 < B::size()) ? s + 1 : 0; }
+
+    bool is_used(size_type s) const
     {
         index i;
         return i.be(s) && used.get(i);
     }
-    K const& key_at(int s) const { index i; i.be(s); return store.at(i).key; }
-    V&       val_at(int s) { index i; i.be(s); return store.at(i).value; }
-    V const& val_at(int s) const { index i; i.be(s); return store.at(i).value; }
+    K const& key_at(size_type s) const { index i; i.be(s); return store.at(i).key; }
+    V&       val_at(size_type s) { index i; i.be(s); return store.at(i).value; }
+    V const& val_at(size_type s) const { index i; i.be(s); return store.at(i).value; }
 
-    // From the home slot, at most N steps
-    int find_slot(K const& k) const
+    // From the home slot, at most as many steps as there are slots
+    size_type find_slot(K const& k) const
     {
-        int s = home_of(k);
-        for (int step = 0; step < N; ++step, s = (s + 1) % N) {
+        if (count == 0) {
+            return none();
+        }
+        size_type s = home_of(k);
+        for (size_type step = 0; step < B::size(); ++step, s = after(s)) {
             if (!is_used(s)) {
-                return -1;
+                return none();
             }
             if (E{}(key_at(s), k)) {
                 return s;
             }
         }
-        return -1;
+        return none();
     }
 
-    void place(int s, K const& k, V v)
+    void place(size_type s, K const& k, V v)
     {
         index i;
         if (i.be(s)) {
@@ -193,7 +199,7 @@ private:
         }
     }
     // Destroys the entry, `used[s] = false`, `--count`
-    void drop(int s)
+    void drop(size_type s)
     {
         index i;
         if (i.be(s)) {
@@ -203,7 +209,7 @@ private:
         }
     }
     // Constructs at `to` from `from`, destroys `from`
-    void move_entry(int from, int to)
+    void move_entry(size_type from, size_type to)
     {
         index f, t;
         if (f.be(from) && t.be(to)) {
@@ -213,20 +219,22 @@ private:
             used.set(f, false);
         }
     }
-    void copy_entries(cobhash const& x)
+    void copy_entries(bndhash const& x)
     {
-        for (int s = 0; s < N; ++s) {
-            index i;
-            if (i.be(s) && used.get(i)) {
+        for (auto i : B::slots()) {
+            if (used.get(i)) {
                 store.make(i, x.store.at(i));
             }
         }
     }
 
-    cobstore<entry, N> store;
-    cobarray<bool, N>  used;
-    unsigned           count = 0;
+    typename B::template store<entry> store;
+    typename B::template array<bool>  used;
+    size_type                         count = 0;
 };
+
+template <class K, class V, int N, class H = std::hash<K>, class E = std::equal_to<K>>
+using cobhash = bndhash<K, V, cobbound<N>, H, E>;
 
 
 #endif // !defined(INC_COBHASH)

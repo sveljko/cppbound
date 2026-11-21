@@ -7,33 +7,57 @@
 #define      INC_ATBDIM
 
 
+#include <atomic>
 #include <compare>
 #include <cstddef>
 #include <iterator>
 
 
 // The dimension that belongs to Tag. Set it once, before it is used.
-// Not thread safe: set the dimension before starting threads.
+// It changes at most once, from "not set" to what it is from then on, so
+// whoever looks at it, from whatever thread, sees the same.
 template <class Tag> class atbdim {
-    static inline std::size_t n      = 0;
-    static inline bool        frozen = false;
+    static constexpr std::size_t           unset = ~std::size_t{ 0 };
+    static inline std::atomic<std::size_t> n{ unset };
 
 public:
     // false if it was already set, or already used
     static bool set(std::size_t x) noexcept
     {
-        if (frozen) {
-            return false;
-        }
-        n      = x;
-        frozen = true;
-        return true;
+        std::size_t was = unset;
+        return (x != unset) && n.compare_exchange_strong(was, x);
     }
-    // Once looked at, it can not change any more
+    // Once looked at, it can not change any more: if not set, it is 0
     static std::size_t get() noexcept
     {
-        frozen = true;
-        return n;
+        std::size_t is = n.load(std::memory_order_relaxed);
+        if (is == unset) {
+            // Not set: it is 0 from now on, unless someone has just set it,
+            // in which case `is` becomes what it was set to
+            if (n.compare_exchange_strong(is, 0)) {
+                return 0;
+            }
+        }
+        return is;
+    }
+};
+
+
+// A tag whose dimension is worked out from that of `Tag`, so it can not be
+// set: nothing if that one is less than MIN, otherwise it is divided by DEN,
+// multiplied by NUM and ADD is added. That is how what consists of several
+// containers (such as a timer wheel) gives each its share.
+template <class Tag, std::size_t NUM = 1, std::size_t DEN = 1, std::size_t ADD = 0, std::size_t MIN = 0>
+struct atbpart {};
+
+template <class Tag, std::size_t NUM, std::size_t DEN, std::size_t ADD, std::size_t MIN>
+class atbdim<atbpart<Tag, NUM, DEN, ADD, MIN>> {
+public:
+    static bool        set(std::size_t) noexcept { return false; }
+    static std::size_t get() noexcept
+    {
+        const std::size_t n = atbdim<Tag>::get();
+        return (n < MIN) ? 0 : n / DEN * NUM + ADD;
     }
 };
 

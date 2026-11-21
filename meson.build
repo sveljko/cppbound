@@ -11,6 +11,13 @@ headers = files(
   'perhaps.hpp', 'fullptr.hpp', 'optptr.hpp', 'contingent.hpp', 'atbdim.hpp', 'atbarray.hpp',
   'cobpool.hpp', 'cobring.hpp', 'cobbitset.hpp', 'cobhash.hpp',
   'fullshared.hpp', 'optshared.hpp', 'fullunique.hpp', 'optunique.hpp',
+  'bndarray.hpp', 'cobbound.hpp', 'cobchain.hpp', 'cobmap.hpp', 'cobvector.hpp', 'cobbinheap.hpp', 'cobstring.hpp',
+  'atbbound.hpp', 'atbpool.hpp', 'atblist.hpp', 'atbfwdlist.hpp', 'atbskiplist.hpp', 'atbmap.hpp',
+  'atbvector.hpp', 'atbbinheap.hpp', 'atbstring.hpp', 'atbring.hpp', 'atbbitset.hpp', 'atbhash.hpp',
+  'cobtree.hpp', 'cobtreemap.hpp', 'cobspsc.hpp', 'cobfunction.hpp', 'coblru.hpp',
+  'atbtree.hpp', 'atbtreemap.hpp', 'atbspsc.hpp', 'atbfunction.hpp', 'atblru.hpp',
+  'cobflatset.hpp', 'cobflatmap.hpp', 'atbflatset.hpp', 'atbflatmap.hpp',
+  'atbmatrix.hpp', 'atbtmrlist.hpp', 'atbtmrwheel.hpp', 'atbtmrmill.hpp', 'atbtmrleanmill.hpp',
 )
 
 install_headers(headers, subdir: 'cppbound')
@@ -36,6 +43,20 @@ test('cobring_test', executable('cobring.t', ['cobring.t.cpp'], dependencies: [c
 test('cobbitset_test', executable('cobbitset.t', ['cobbitset.t.cpp'], dependencies: [cppbound_dep]))
 test('cobhash_test', executable('cobhash.t', ['cobhash.t.cpp'], dependencies: [cppbound_dep]))
 test('perhaps_test', executable('perhaps.t', ['perhaps.t.cpp'], dependencies: [cppbound_dep]))
+test('cobmap_test', executable('cobmap.t', ['cobmap.t.cpp'], dependencies: [cppbound_dep]))
+test('cobvector_test', executable('cobvector.t', ['cobvector.t.cpp'], dependencies: [cppbound_dep]))
+test('cobbinheap_test', executable('cobbinheap.t', ['cobbinheap.t.cpp'], dependencies: [cppbound_dep]))
+test('cobstring_test', executable('cobstring.t', ['cobstring.t.cpp'], dependencies: [cppbound_dep]))
+test('atbcontainers_test', executable('atbcontainers.t', ['atbcontainers.t.cpp'], dependencies: [cppbound_dep]))
+test('checked_test', executable('checked.t', ['checked.t.cpp'], dependencies: [cppbound_dep]))
+test('cobflat_test', executable('cobflat.t', ['cobflat.t.cpp'], dependencies: [cppbound_dep]))
+test('hive_test', executable('hive.t', ['hive.t.cpp'], dependencies: [cppbound_dep]))
+test('corners_test', executable('corners.t', ['corners.t.cpp'], dependencies: [cppbound_dep]))
+test('docs_test', executable('docs.t', ['docs.t.cpp'], dependencies: [cppbound_dep]))
+test('cobtree_test', executable('cobtree.t', ['cobtree.t.cpp'], dependencies: [cppbound_dep]))
+test('cobfunction_test', executable('cobfunction.t', ['cobfunction.t.cpp'], dependencies: [cppbound_dep]))
+test('coblru_test', executable('coblru.t', ['coblru.t.cpp'], dependencies: [cppbound_dep]))
+test('cobspsc_test', executable('cobspsc.t', ['cobspsc.t.cpp'], dependencies: [cppbound_dep, dependency('threads')]))
 
 # What must not compile, is checked not to. As that takes a compiler run for
 # each case, it's not done when we're a subproject.
@@ -46,7 +67,7 @@ if not meson.is_subproject()
   if not cpp.compiles(nocompile, args: nocompile_args, name: 'nocompile.t.cpp as is')
     error('nocompile.t.cpp should compile when no case is selected')
   endif
-  foreach i : range(1, 50)
+  foreach i : range(1, 86)
     if cpp.compiles(nocompile, args: nocompile_args + ['-DNOCOMPILE=@0@'.format(i)],
                     name: 'nocompile.t.cpp case @0@'.format(i))
       error('nocompile.t.cpp case @0@ should not compile'.format(i))

@@ -8,31 +8,52 @@
 
 
 #include "cobarray.hpp"
-#include "cobhlp.hpp"
 #include "cobmatrix.hpp"
 
+#include <type_traits>
 
-template <class ID, int N, class U, class NULIFY, unsigned LVL = 5, unsigned DIM = 64>
-class cobtmrleanmill {
-    static_assert(N > 0, "Mill must have some timers");
+
+// `S` is the bound of the number of timers of a spoke.
+// With `CHECKED` being `true`, the index of a timer is checked: once the
+// spoke that timer was in has expired, it is the index of nothing. That
+// takes a counter for each spoke (not for each timer).
+template <class ID, class S, class U, class NULIFY, unsigned LVL = 5, unsigned DIM = 64, bool CHECKED = false>
+class bndtmrleanmill {
     static_assert(LVL * DIM > 0, "Mill must have some spokes");
-    static_assert(LVL * DIM < N, "Too many spokes");
-
-    static constexpr auto spokedim = N / (LVL * DIM) + 1;
 
     using level    = cobint<0, LVL - 1>;
     using lvlindex = cobint<0, DIM - 1>;
-    using spoke    = cobarray<ID, spokedim>;
-    using spokepos = cobint<0, spokedim>;
+    using spoke    = typename S::template values<ID>;
+    using spokepos = typename S::link;      // `nil`: not a timer
+
+    // The stamp of a spoke changes each time the spoke expires, so the index
+    // of a timer, which has the stamp of when it was started, is good while
+    // the stamps are the same. If not checked, there is nothing to it.
+    struct stamped {
+        cobmatrix<unsigned, LVL, DIM> count;
+        stamped() { count.fill(0); }
+        unsigned of(level lvl, lvlindex ispoke) const { return count.get({ lvl, ispoke }); }
+        void     next(level lvl, lvlindex ispoke) { count.set({ lvl, ispoke }, count.get({ lvl, ispoke }) + 1u); }
+    };
+    struct unstamped {
+        struct none {
+            bool operator==(none const&) const { return true; }
+        };
+        none of(level, lvlindex) const { return {}; }
+        void next(level, lvlindex) {}
+    };
+    using stamps = std::conditional_t<CHECKED, stamped, unstamped>;
+    using stamp  = std::conditional_t<CHECKED, unsigned, typename unstamped::none>;
 
     spoke                         timers[LVL][DIM];
     cobmatrix<unsigned, LVL, DIM> active;
     cobarray<lvlindex, LVL>       next;
+    [[no_unique_address]] stamps  expiries;
 
 public:
     using tmrID = ID;
 
-    cobtmrleanmill()
+    bndtmrleanmill()
     {
         active.fill(0);
         next.fill(cobic<0>);
@@ -44,8 +65,9 @@ public:
         level    lvl;
         lvlindex ispoke;
         spokepos idx;
+        [[no_unique_address]] stamp when{};
 
-        constexpr bool valid() const { return idx != idx.greatest(); }
+        bool valid() const { return idx != S::nil; }
     };
 
     constexpr index spoke_from_duration(U duration)
@@ -53,7 +75,7 @@ public:
         level lvl;
         // Before anything else, as the duration might not fit our integer
         if ((duration < U{ 0 }) || (duration > max_duration)) {
-            return { lvl, cobic<0>, spokepos::greatest() };
+            return { lvl, cobic<0>, S::nil, {} };
         }
         unsigned d = static_cast<unsigned>(duration.count());
         do {
@@ -61,11 +83,11 @@ public:
             if (idx.be(d)) {
                 d = (d + next.get(lvl).get()) % (idx.greatest().get() + 1);
                 idx.be(d);
-                return { lvl, idx, cobic<0> };
+                return { lvl, idx, spokepos{}, {} };
             }
             d = d / DIM;
         } while (lvl.advance());
-        return { lvl, cobic<0>, spokepos::greatest() };
+        return { lvl, cobic<0>, S::nil, {} };
     }
 
     constexpr index start(ID id, U duration)
@@ -76,9 +98,10 @@ public:
             auto  pos   = active.get({ i.lvl, i.ispoke });
             if (i.idx.be(pos) && spoke.maybe_set(pos, id)) {
                 active.set({ i.lvl, i.ispoke }, pos + 1);
+                i.when = expiries.of(i.lvl, i.ispoke);
             }
             else {
-                i.idx = spokepos::greatest();
+                i.idx = S::nil;
             }
         }
         return i;
@@ -105,9 +128,10 @@ public:
 
     void stop(index it)
     {
-        if (it.valid() && (static_cast<unsigned>(it.idx.get()) < active.get({ it.lvl, it.ispoke }))) {
+        if (it.valid() && (it.when == expiries.of(it.lvl, it.ispoke))
+            && (it.idx.get() < static_cast<decltype(it.idx.get())>(active.get({ it.lvl, it.ispoke })))) {
             NULIFY nlf;
-            auto p = timers[it.lvl.get()][it.ispoke.get()].begin() + it.idx.get();
+            auto p = timers[it.lvl.get()][it.ispoke.get()].begin() + static_cast<std::ptrdiff_t>(it.idx.get());
             nlf(*p);
         }
     }
@@ -148,6 +172,7 @@ public:
                     ++p;
                 }
                 active.set({ lvl, ispoke }, 0);
+                expiries.next(lvl, ispoke);
 
                 if (ispoke.advance()) {
                     next.set(lvl, ispoke);
@@ -181,5 +206,22 @@ private:
         return rslt;
     }
 };
+
+namespace cobhlp {
+// The bound of a spoke of a mill of N timers: a share of them, and one more
+template <int N, unsigned LVL, unsigned DIM> struct millspoke {
+    static_assert(N > 0, "Mill must have some timers");
+    static_assert(LVL * DIM < static_cast<unsigned>(N), "Too many spokes");
+    using type = cobbound<N / static_cast<int>(LVL * DIM) + 1>;
+};
+} // namespace cobhlp
+
+template <class ID, int N, class U, class NULIFY, unsigned LVL = 5, unsigned DIM = 64>
+using cobtmrleanmill = bndtmrleanmill<ID, typename cobhlp::millspoke<N, LVL, DIM>::type, U, NULIFY, LVL, DIM>;
+
+// The one with checked indices
+template <class ID, int N, class U, class NULIFY, unsigned LVL = 5, unsigned DIM = 64>
+using cobcheckedtmrleanmill =
+    bndtmrleanmill<ID, typename cobhlp::millspoke<N, LVL, DIM>::type, U, NULIFY, LVL, DIM, true>;
 
 #endif // define      INC_COBTMRLEANMILL

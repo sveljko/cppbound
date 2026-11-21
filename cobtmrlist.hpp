@@ -10,9 +10,12 @@
 #include "coblist.hpp"
 
 
-template <class ID, int N, class U> class cobtmrlist {
-    static_assert(N > 0, "List must have some capacity");
-
+// `B` is the bound of the number of timers.
+// With `CHECKED` being `true`, the index of a timer is checked: once that
+// timer is not running, it is the index of nothing, also when a new timer
+// takes its place.
+// With `HIVE` being `true`, which slots hold a timer is kept as a bit each.
+template <class ID, class B, class U, bool CHECKED = false, bool HIVE = false> class bndtmrlist {
     struct elem {
         ID id;
         U  remaining;
@@ -29,11 +32,11 @@ template <class ID, int N, class U> class cobtmrlist {
         bool operator==(elem const& x) const { return id == x.id; }
     };
 
-    coblist<elem, N> timers;
+    bndlist<elem, B, CHECKED, HIVE> timers;
 
 public:
     using tmrID = ID;
-    using index = typename coblist<elem, N>::link;
+    using index = typename bndlist<elem, B, CHECKED, HIVE>::link;
 
     bool empty() const { return timers.empty(); }
 
@@ -113,6 +116,21 @@ public:
     }
 
     // std::optional<ID> expired(U proteklo) {}
+
+private:
+    template <class, class, class, unsigned, bool, bool> friend class bndtmrwheel;
+    // For the wheel: the time left for the first timer, if there is one
+    U first_remaining() const { return timers.empty() ? U{} : timers.get(timers.lfront()).remaining; }
 };
+
+template <class ID, int N, class U> using cobtmrlist        = bndtmrlist<ID, cobbound<N>, U>;
+// The one with checked indices
+template <class ID, int N, class U> using cobcheckedtmrlist = bndtmrlist<ID, cobbound<N>, U, true>;
+
+// The ones where which slots hold a timer is kept as a bit each (see `cobhive`)
+template <class ID, int N, class U>
+using cobhivetmrlist = bndtmrlist<ID, cobbound<N>, U, false, true>;
+template <class ID, int N, class U>
+using cobcheckedhivetmrlist = bndtmrlist<ID, cobbound<N>, U, true, true>;
 
 #endif // define      INC_COBTMRLIST

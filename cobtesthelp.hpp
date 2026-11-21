@@ -27,6 +27,8 @@ struct counted {
     counted(int v_ = 0) : v(v_) { ++alive; }
     counted(counted const& x) : v(x.v) { ++alive; ++copies; }
     counted(counted&& x) noexcept : v(x.v) { ++alive; ++moves; x.v = -1; }
+    counted& operator=(counted const&) = default;   // assigning makes no object
+    counted& operator=(counted&&)      = default;
     ~counted() { --alive; }
 };
 

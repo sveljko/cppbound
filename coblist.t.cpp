@@ -266,7 +266,8 @@ void insert()
 
     auto at = l.insert(l.lend(), 3);
     CHECK(at != l.lend() && l.get(at) == 3);
-    CHECK(l.insert(l.lbegin(), 1) == l.lfront());
+    const auto first = l.insert(l.lbegin(), 1);   // on its own: the order of evaluation of `==` is not specified
+    CHECK(first == l.lfront());
     at = l.insert(at, 2);
     CHECK(l.get(at) == 2);
     CHECK(same(l, std::list<int>{ 1, 2, 3 }));

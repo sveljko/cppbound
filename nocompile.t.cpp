@@ -3,11 +3,24 @@
  * compile, to show that it's the offending line that fails, not the rest.
  */
 #include "atbarray.hpp"
+#include "atbstring.hpp"
+#include "atbvector.hpp"
 #include "cobarray.hpp"
+#include "cobbinheap.hpp"
 #include "cobbitset.hpp"
+#include "cobflatmap.hpp"
+#include "cobflatset.hpp"
+#include "cobfunction.hpp"
 #include "cobi.hpp"
+#include "coblist.hpp"
+#include "cobmap.hpp"
 #include "cobmatrix.hpp"
+#include "cobpool.hpp"
 #include "cobskiplist.hpp"
+#include "cobspsc.hpp"
+#include "cobstring.hpp"
+#include "cobtree.hpp"
+#include "cobvector.hpp"
 #include "contingent.hpp"
 #include "fullunique.hpp"
 #include "optptr.hpp"
@@ -15,6 +28,7 @@
 #include "optunique.hpp"
 
 #include <limits>
+#include <memory>
 #include <optional>
 #include <string>
 
@@ -48,6 +62,24 @@ int main()
     contingent<int*>             cp;
     atbarray<int, tag1>          atb;
     cobbitset<10>                bits;
+    cobvector<int, 4>            vec;
+    cobstring<3>                 str;
+    cobmap<int, int, 8>          mp;
+    cobbinheap<int, 4>           heap;
+    atbvector<int, tag1>         avec;
+    cobtree<int, 8>              tree;
+    cobpool<int, 4>              plain;
+    cobcheckedpool<int, 4>       checked;
+    cobspsc<int, 4>              queue;
+    cobfunction<int(int), 8>     fn;
+    cobmovefunction<int(int), 8> mfn;
+    coblist<int, 4>              plainlist;
+    cobcheckedlist<int, 4>       checkedlist;
+    cobflatset<int, 8>           flatset;
+    cobflatmap<int, int, 8>      flatmap;
+    (void)mfn; (void)plainlist; (void)checkedlist; (void)flatset; (void)flatmap;
+    (void)vec; (void)str; (void)mp; (void)heap; (void)avec;
+    (void)tree; (void)plain; (void)checked; (void)queue; (void)fn;
     (void)bits;
     (void)atb;
     optshared<S>                 os(nullptr);
@@ -159,6 +191,82 @@ int main()
     auto z = bits.test(cobic<10>);
 #elif NOCOMPILE == 49 // a bit that was not checked
     bits.set(3);
+#elif NOCOMPILE == 50 // vector index out of the capacity
+    auto z = vec.get(cobic<4>);
+#elif NOCOMPILE == 51 // vector index that was not checked
+    auto z = vec.get(1);
+#elif NOCOMPILE == 52 // a literal that does not fit the string
+    cobstring<3> z = "abcd";
+#elif NOCOMPILE == 53 // character index out of the capacity
+    auto z = str.get(cobic<3>);
+#elif NOCOMPILE == 54 // a string of more than 255 characters
+    cobstring<256> z;
+#elif NOCOMPILE == 55 // a string that may be too long
+    cobstring<3> z = cobstring<4>{};
+#elif NOCOMPILE == 56 // changing a key of a map
+    mp.for_each([](int& k, int&) { k = 1; });
+#elif NOCOMPILE == 57 // changing a value of a map through an iterator
+    mp.begin()->value = 1;
+#elif NOCOMPILE == 58 // changing an element of a heap
+    heap.for_each([](int& x) { x = 0; });
+#elif NOCOMPILE == 59 // no literal is known to fit a string bound at allocation time
+    atbstring<tag1> z = "ab";
+#elif NOCOMPILE == 60 // a compile time bound integer is not an atbvector index
+    auto z = avec.get(cobic<0>);
+#elif NOCOMPILE == 61 // an index of one tag on a vector of another
+    auto j = *atbidx<tag2>::first<std::optional>();
+    auto z = avec.get(j);
+#elif NOCOMPILE == 62 // a reference to an element of a vector
+    int& z = vec.get(cobic<0>);
+#elif NOCOMPILE == 63 // a string has no iterators
+    auto z = str.begin();
+#elif NOCOMPILE == 64 // nor a pointer to its characters
+    auto z = str.c_str();
+#elif NOCOMPILE == 65 // a constant iterator of a vector does not become one that is not
+    cobvector<int, 4>::I z = vec.cbegin();
+#elif NOCOMPILE == 66 // a dimension that is worked out can't be made up
+    atbidx<atbpart<tag1, 2>> z{ 0 };
+#elif NOCOMPILE == 67 // changing an element of a tree
+    *tree.begin() = 1;
+#elif NOCOMPILE == 68 // a handle that is not checked is not one that is
+    auto z = checked.live(plain.make(1));
+#elif NOCOMPILE == 69 // a checked handle can't be made up
+    cobcheckedpool<int, 4>::handle z{ cobic<1> };
+#elif NOCOMPILE == 70 // a queue between two threads is not copied
+    auto z = queue;
+#elif NOCOMPILE == 71 // what does not fit the function
+    struct { char pad[9]; int operator()(int x) const { return x; } } wide;
+    fn = wide;
+#elif NOCOMPILE == 72 // what can't be called as the function is
+    cobfunction<int(int), 8> z = [](int*) { return 1; };
+#elif NOCOMPILE == 73 // what can't be copied can't be held by a function
+    cobfunction<void()> z = [p = std::unique_ptr<int>()] {};
+#elif NOCOMPILE == 74 // putting in a queue is for its producer
+    queue.push(1);
+#elif NOCOMPILE == 75 // the producer of a queue is not copied
+    auto tx = queue.claim_producer<std::optional>();
+    auto z  = *tx;
+#elif NOCOMPILE == 76 // nor made up
+    cobspsc<int, 4>::consumer z;
+#elif NOCOMPILE == 77 // a function that can only be moved is not copied
+    auto z = mfn;
+#elif NOCOMPILE == 78 // a link that is not checked is not one that is
+    checkedlist.erase(plainlist.lbegin());
+#elif NOCOMPILE == 79 // a checked link is not a number
+    auto z = checkedlist.get(cobic<0>);
+#elif NOCOMPILE == 80 // changing an element of a flat set
+    *flatset.begin() = 1;
+#elif NOCOMPILE == 81 // changing a key of a flat map
+    flatmap.begin()->key = 1;
+#elif NOCOMPILE == 82 // nor its value, through an iterator
+    flatmap.begin()->value = 1;
+#elif NOCOMPILE == 83 // flat set index out of the capacity
+    auto z = flatset.get(cobic<8>);
+#elif NOCOMPILE == 84 // a pool that is not a hive is not walked
+    auto z = plain.first();
+#elif NOCOMPILE == 85 // a side of a queue is given back, not copied back
+    auto tx = queue.claim_producer<std::optional>();
+    queue.release(*tx);
 #endif
 
     return 0;
