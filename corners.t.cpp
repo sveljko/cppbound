@@ -19,6 +19,7 @@
 #include "cobspsc.hpp"
 #include "cobstring.hpp"
 #include "cobtmrleanmill.hpp"
+#include "cobtmrleanring.hpp"
 #include "cobtmrlist.hpp"
 #include "cobtmrmill.hpp"
 #include "cobtmrwheel.hpp"
@@ -420,6 +421,27 @@ void timers()
         w.process_expired(1ms, [&](int id) { ids.push_back(id * 100 + t); });
     }
     CHECK((ids == std::vector<int>{ 109 }));
+
+    cobtmrleanring<int, 4, ms, nulify> r;
+    CHECK(r.empty() && r.stop(1) == -1 && !r.stop_first<std::optional>().has_value());
+    r.process_expired(5ms, [](int) { CHECK(false); });
+    CHECK(r.start(1, 5ms) && r.start(2, 5ms) && r.start(3, 5ms) && r.start(4, 5ms));
+    CHECK(!r.start(5, 5ms));                    // full: no room
+    CHECK(r.stop(1) == 0 && r.stop(1) == -1);   // nullified in place, then gone
+    CHECK(r.start(5, 5ms) && !r.start(6, 5ms)); // the hole is reused, then full again
+
+    cobtmrleanring<int, 4, ms, nulify> h;
+    h.start(1, 1ms); h.start(2, 2ms); h.start(3, 3ms);
+    CHECK(h.stop(1) == 0);                      // a hole at the head
+    CHECK(h.stop_first<std::optional>() == 2);  // skips the hole
+    ids.clear();
+    h.process_expired(3ms, [&](int id) { ids.push_back(id); });
+    CHECK((ids == std::vector<int>{ 3 }) && h.empty());   // the cancelled one is never reported
+    CHECK(!h.start(9, ms{ -1 }) && h.empty());            // a negative duration is not started
+    CHECK(h.start(7, 0ms));
+    ids.clear();
+    h.process_expired(0ms, [&](int id) { ids.push_back(id); });
+    CHECK((ids == std::vector<int>{ 7 }) && h.empty());   // zero expires on the next call
 }
 
 void queues()

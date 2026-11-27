@@ -235,6 +235,7 @@ one takes a tag:
 | `cobtmrwheel<ID, N, U, SPOKES>`| `atbtmrwheel<ID, Tag, U, SPOKES>`       |
 | `cobtmrmill<ID, N, U, ...>`    | `atbtmrmill<ID, Tag, U, ...>`           |
 | `cobtmrleanmill<ID, N, U, ...>`| `atbtmrleanmill<ID, Tag, U, ...>`       |
+| `cobtmrleanring<ID, N, U, NULIFY>`| `atbtmrleanring<ID, Tag, U, NULIFY>` |
 
 The `checked` and `hive` names go the same way: `atbcheckedlist`,
 `atbhivetree`, `atbcheckedhivemap` and so on.

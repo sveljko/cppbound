@@ -7,7 +7,7 @@ include_dirs = include_directories('.')
 headers = files(
   'cobi.hpp', 'cobhlp.hpp', 'cobstore.hpp', 'cobarray.hpp', 'cobmatrix.hpp',
   'coblist.hpp', 'cobfwdlist.hpp', 'cobskiplist.hpp',
-  'cobtmrlist.hpp', 'cobtmrwheel.hpp', 'cobtmrmill.hpp', 'cobtmrleanmill.hpp',
+  'cobtmrlist.hpp', 'cobtmrwheel.hpp', 'cobtmrmill.hpp', 'cobtmrleanmill.hpp', 'cobtmrleanring.hpp',
   'perhaps.hpp', 'fullptr.hpp', 'optptr.hpp', 'contingent.hpp', 'atbdim.hpp', 'atbarray.hpp',
   'cobpool.hpp', 'cobring.hpp', 'cobbitset.hpp', 'cobhash.hpp',
   'fullshared.hpp', 'optshared.hpp', 'fullunique.hpp', 'optunique.hpp',
@@ -17,7 +17,7 @@ headers = files(
   'cobtree.hpp', 'cobtreemap.hpp', 'cobspsc.hpp', 'cobfunction.hpp', 'coblru.hpp',
   'atbtree.hpp', 'atbtreemap.hpp', 'atbspsc.hpp', 'atbfunction.hpp', 'atblru.hpp',
   'cobflatset.hpp', 'cobflatmap.hpp', 'atbflatset.hpp', 'atbflatmap.hpp',
-  'atbmatrix.hpp', 'atbtmrlist.hpp', 'atbtmrwheel.hpp', 'atbtmrmill.hpp', 'atbtmrleanmill.hpp',
+  'atbmatrix.hpp', 'atbtmrlist.hpp', 'atbtmrwheel.hpp', 'atbtmrmill.hpp', 'atbtmrleanmill.hpp', 'atbtmrleanring.hpp',
 )
 
 install_headers(headers, subdir: 'cppbound')

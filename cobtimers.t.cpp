@@ -1,6 +1,7 @@
 #include "cobtesthelp.hpp"
 
 #include "atbtmrleanmill.hpp"
+#include "atbtmrleanring.hpp"
 #include "atbtmrlist.hpp"
 #include "atbtmrmill.hpp"
 #include "atbtmrwheel.hpp"
@@ -8,6 +9,7 @@
 #include "cobtmrwheel.hpp"
 #include "cobtmrmill.hpp"
 #include "cobtmrleanmill.hpp"
+#include "cobtmrleanring.hpp"
 
 
 #include "perhaps.hpp"
@@ -115,6 +117,7 @@ using wheel    = cobtmrwheel<int, 16, ms, 4>;
 using mill     = cobtmrmill<int, 512, ms, 3>;
 using leanmill = cobtmrleanmill<int, 512, ms, nulify, 3>;
 using exactmill = cobtmrmill<int, 512, ms, 3, 64, true>;
+using leanring  = cobtmrleanring<int, 32, ms, nulify>;
 
 
 // The ticks (counting from 1) at which timer `id` expired
@@ -215,6 +218,133 @@ void liststop()
     auto p = tmr.template stop_first<perhaps>();
     CHECK(p.has_value() && (7 == p.value_or(-1)));
     CHECK(!tmr.template stop_first<perhaps>().has_value());
+}
+
+
+// The ring: sorted by expiry, cancelling leaves a hole that a later start
+// uses, and a cancelled timer is never reported
+void ringbasics()
+{
+    std::vector<int> expired;
+    auto             note = [&](int id) { expired.push_back(id); };
+
+    {
+        leanring tmr;
+        CHECK(tmr.empty());
+        CHECK(tmr.start(1, 10ms));
+        CHECK(tmr.start(2, 20ms));
+        CHECK(tmr.start(3, 30ms));
+        CHECK(!tmr.empty());
+        CHECK(-1 == tmr.stop(333));
+        CHECK(0 == tmr.stop(2));        // a hole in the middle
+        CHECK(-1 == tmr.stop(2));       // already nullified
+        tmr.process_expired(19ms, note);
+        CHECK(expired == std::vector<int>{ 1 });
+        tmr.process_expired(11ms, note);
+        CHECK((expired == std::vector<int>{ 1, 3 }));   // 2 is never reported
+        CHECK(tmr.empty());
+        CHECK(-1 == tmr.stop(1));
+    }
+
+    // a full ring with a hole: the new timer fits in it, then the ring is full
+    {
+        expired.clear();
+        cobtmrleanring<int, 4, ms, nulify> tmr;
+        CHECK(tmr.start(1, 10ms));
+        CHECK(tmr.start(2, 20ms));
+        CHECK(tmr.start(3, 30ms));
+        CHECK(tmr.start(4, 40ms));
+        CHECK(!tmr.start(5, 15ms));     // no room
+        CHECK(0 == tmr.stop(2));        // a hole between 1 and 3
+        CHECK(tmr.start(5, 15ms));      // it fits in the hole
+        CHECK(!tmr.start(6, 25ms));     // full again
+        tmr.process_expired(15ms, note);
+        CHECK((expired == std::vector<int>{ 1, 5 }));
+        CHECK(tmr.start(6, 25ms));      // room after the expiries
+        tmr.process_expired(25ms, note);
+        CHECK((expired == std::vector<int>{ 1, 5, 3, 6, 4 }));
+        CHECK(tmr.empty());
+    }
+
+    // the hole is before the new timer: the shift toward the head stops at it
+    {
+        expired.clear();
+        cobtmrleanring<int, 4, ms, nulify> tmr;
+        CHECK(tmr.start(1, 10ms));
+        CHECK(tmr.start(2, 20ms));
+        CHECK(tmr.start(3, 30ms));
+        CHECK(tmr.start(4, 40ms));
+        CHECK(0 == tmr.stop(2));        // a hole, with the ring still full
+        CHECK(tmr.start(5, 35ms));      // expires after the hole: shift toward the head
+        tmr.process_expired(40ms, note);
+        CHECK((expired == std::vector<int>{ 1, 3, 5, 4 }));
+        CHECK(tmr.empty());
+    }
+
+    // room before the head: a timer that expires first just steps the head back
+    {
+        expired.clear();
+        cobtmrleanring<int, 4, ms, nulify> tmr;
+        CHECK(tmr.start(1, 20ms));
+        CHECK(tmr.start(2, 30ms));
+        CHECK(tmr.start(3, 10ms));
+        tmr.process_expired(30ms, note);
+        CHECK((expired == std::vector<int>{ 3, 1, 2 }));
+    }
+
+    // head and tail wrap around the array, over and over
+    {
+        cobtmrleanring<int, 4, ms, nulify> tmr;
+        for (int round = 0; round < 50; ++round) {
+            expired.clear();
+            for (int i = 0; i < 4; ++i) {
+                CHECK(tmr.start(i, ms{ 10 * (i + 1) }));
+            }
+            CHECK(!tmr.start(99, 5ms));
+            tmr.process_expired(40ms, note);
+            CHECK((expired == std::vector<int>{ 0, 1, 2, 3 }));
+            CHECK(tmr.empty());
+        }
+    }
+
+    // stop_first skips the holes at the head
+    {
+        leanring tmr;
+        CHECK(tmr.start(1, 10ms));
+        CHECK(tmr.start(2, 20ms));
+        CHECK(tmr.start(3, 30ms));
+        CHECK(0 == tmr.stop(1));        // a hole at the head
+        auto f = tmr.template stop_first<std::optional>();
+        CHECK(f.has_value() && (2 == *f));
+        CHECK(0 == tmr.stop(3));
+        CHECK(!tmr.template stop_first<std::optional>().has_value());
+        CHECK(tmr.empty());
+    }
+
+    // no duration means the next tick; a negative one is not started
+    {
+        expired.clear();
+        leanring tmr;
+        CHECK(tmr.start(1, 0ms));
+        CHECK(!tmr.start(2, -5ms));
+        tmr.process_expired(0ms, note);
+        CHECK(expired == std::vector<int>{ 1 });
+        CHECK(tmr.empty());
+    }
+
+    // the nulifier from contingent.hpp makes one too
+    {
+        using nring = cobtmrleanring<int, 32, ms, nulifier<int, nothing_is<-1>>>;
+        nring tmr;
+        CHECK(tmr.start(1, 10ms));
+        CHECK(tmr.start(2, 20ms));
+        CHECK(0 == tmr.stop(1));
+        CHECK(-1 == tmr.stop(1));
+        expired.clear();
+        tmr.process_expired(20ms, note);
+        CHECK(expired == std::vector<int>{ 2 });
+        CHECK(tmr.empty());
+    }
 }
 
 
@@ -718,6 +848,7 @@ void atb()
     using amill     = atbtmrmill<int, timers<512>, ms, 3>;
     using aleanmill = atbtmrleanmill<int, timers<512>, ms, nulify, 3>;
     using aexact    = atbtmrmill<int, timers<512>, ms, 3, 64, true>;
+    using aring     = atbtmrleanring<int, timers<32>, ms, nulify>;
     {
         alist     l;
         awheel    w;
@@ -738,6 +869,7 @@ void atb()
     exact<atbtmrlist<int, timers<32>, ms>>(32);
     exact<atbtmrwheel<int, timers<128>, ms, 4>>(32);
     exact<atbtmrwheel<int, timers<320>, ms, 10>>(32);
+    exact<aring>(32);
     millprecise<amill>();
     millprecise<aleanmill>();
     millfull<amill>();
@@ -754,6 +886,7 @@ void atb()
     reentry<awheel>(8, 80, 10);
     reentry<amill>(10, 110, 10);
     reentry<aleanmill>(10, 110, 10);
+    reentry<aring>(10, 100, 10);
     reentry<aexact>(10, 110, 10);
     reentry<aexact>(100, 1010, 10);
 
@@ -777,6 +910,7 @@ void atb()
     atbtmrmill<int, timers<0>, ms, 3>              m0;
     atbtmrmill<int, timers<0>, ms, 3, 8, true>     x0;
     atbtmrleanmill<int, timers<0>, ms, nulify, 3>  lm0;
+    atbtmrleanring<int, timers<0>, ms, nulify>     r0;
     atbtmrmill<int, timers<128>, ms, 3>            few;     // 3 * 64 spokes
     atbtmrleanmill<int, timers<128>, ms, nulify, 3> leanfew;
     CHECK(l0.start(1, 5ms) == l0.start(2, 5ms) && l0.empty() && (-1 == l0.stop(1)));
@@ -790,6 +924,9 @@ void atb()
     x0.process_expired(100ms, never);
     lm0.process_expired(100ms, never);
     few.process_expired(100ms, never);
+    CHECK(!r0.start(1, 5ms) && r0.empty() && (-1 == r0.stop(1)));
+    CHECK(!r0.template stop_first<std::optional>().has_value());
+    r0.process_expired(100ms, never);
     CHECK(!x0.template stop_first<std::optional>().has_value() && !m0.template stop_first<std::optional>().has_value());
 }
 
@@ -839,7 +976,9 @@ int main()
     exact<cobtmrlist<int, 32, ms>>(32);
     exact<cobtmrwheel<int, 128, ms, 4>>(32);
     exact<cobtmrwheel<int, 320, ms, 10>>(32);
+    exact<leanring>(32);
     wheelbasics();
+    ringbasics();
     millprecise<mill>();
     millprecise<leanmill>();
     millfull<mill>();
@@ -862,6 +1001,7 @@ int main()
     reentry<wheel>(8, 80, 10);
     reentry<mill>(10, 110, 10);
     reentry<leanmill>(10, 110, 10);
+    reentry<leanring>(10, 100, 10);
     reentry<exactmill>(10, 110, 10);
     reentry<exactmill>(100, 1010, 10);
 
@@ -871,6 +1011,7 @@ int main()
     firstisfirst<cobcheckedtmrwheel<int, 64, ms, 4>>(100);
     firstisfirst<cobtmrmill<int, 512, ms, 3, 8>>(400);
     firstisfirst<cobtmrleanmill<int, 512, ms, nulify, 3, 8>>(400);
+    firstisfirst<cobtmrleanring<int, 64, ms, nulify>>(100);
     firstisfirst<cobtmrmill<int, 64, ms, 3, 8, true>>(400);
 
     checked();

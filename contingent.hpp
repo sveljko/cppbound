@@ -127,8 +127,8 @@ public:
 template <class T> using contingently = contingent<T>;
 
 
-// A NULIFY for cobtmrleanmill made from a "nothing" policy
-// (only meant for policies that store the `T` itself)
+// A NULIFY for cobtmrleanmill or cobtmrleanring made from a "nothing"
+// policy (only meant for policies that store the `T` itself)
 template <class T, class S = nothing<T>> struct nulifier {
     constexpr bool operator()(T& id) const
     {

@@ -24,6 +24,7 @@
 #include "cobspsc.hpp"
 #include "cobstring.hpp"
 #include "cobtmrleanmill.hpp"
+#include "cobtmrleanring.hpp"
 #include "cobtmrlist.hpp"
 #include "cobtmrmill.hpp"
 #include "cobtmrwheel.hpp"
@@ -212,6 +213,7 @@ int main()
       static_assert(cobtmrmill<int, 512, ms>::max_duration.count() == 1073741823);
       CHECK(wh.stop(wh.start(7, ms{ 3 })) == 0);
       cobtmrmill<int, 512, ms, 3, 64, true> full; int started = 0; for (int i = 0; i < 600; ++i) { started += full.start(i, ms{ 7 }).valid(); } CHECK(started == 512);
-      cobtmrmill<int, 512, ms, 3> shared; started = 0; for (int i = 0; i < 600; ++i) { started += shared.start(i, ms{ 7 }).valid(); } CHECK(started == 512 / (3 * 64) + 1); }
+      cobtmrmill<int, 512, ms, 3> shared; started = 0; for (int i = 0; i < 600; ++i) { started += shared.start(i, ms{ 7 }).valid(); } CHECK(started == 512 / (3 * 64) + 1);
+      cobtmrleanring<int, 4, ms, nulifier<int, nothing_is<-1>>> ring; CHECK(ring.start(1, ms{ 5 }) && ring.start(2, ms{ 3 }) && !ring.empty()); CHECK(ring.stop(1) == 0 && ring.stop(1) == -1); n = 0; ring.process_expired(ms{ 3 }, [&](int id) { n += id; }); CHECK(n == 2 && ring.empty()); }
     return 0;
 }

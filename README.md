@@ -91,6 +91,15 @@ There are:
   "cancelled" timer from a "non-cancelled one".
   The regular mill has a compile time option to be exact, by cascading
   the timers from wheel to wheel, so that no precision is lost.
+* Capacity bound Timer lean ring. For where memory is tight and timers
+  mostly expire (are rarely cancelled). The timers are kept sorted by
+  expiry in a ring (a circular array) with no links, no pool and no
+  per-timer bookkeeping: the only room beyond the IDs is the expiry
+  time of each, and the head and tail of the ring. There is no stop by
+  index (inserting moves timers around); cancelling just "nulifies" a
+  timer in place, leaving a hole that a later start reuses. Unlike the
+  lean mill, a cancelled timer is never reported. Starting is O(N),
+  stopping the first timer and processing expiries are O(1) per timer.
 * Elements of any type in the lists and the skip list (`std::string`, `std::unique_ptr`, types
   without a default constructor), constructed and destroyed exactly when inserted and erased.
 * `contingent<T>`: an optional that uses a sentinel value (nullptr, NaN, a chosen integer, the
@@ -112,7 +121,8 @@ There are:
   is given out once.
 * Lists, skiplists, trees, maps, pools and timers each have a _checked_ variant
   (`cobcheckedlist`, `cobcheckedtmrmill`...): the link of an erased element, or the index of a
-  timer that is not running, is then never taken for that of a new one.
+  timer that is not running, is then never taken for that of a new one. The lean timer ring has
+  no index, so no checked variant.
 * The same ones, and the cache, each have a _hive_ variant (`cobhivelist`, `cobhivetmrmill`,
   `cobcheckedhivetree`...), which keeps a bit, not a byte, for each slot to tell if it is in use.
 * `cobfunction`: like `std::function`, but what it holds is in the object, so it never allocates.
@@ -717,8 +727,8 @@ got at by its link. Nothing else changes: the interface is the same, and so is w
 does. There is one for each, and one that is checked as well: `cobhivelist` and
 `cobcheckedhivelist`, and the same for `fwdlist`, `skiplist`, `map`, `tree`, `treemap`,
 `tmrlist`, `tmrwheel` and `tmrmill`; then `cobhivelru` (the cache has no checked variant), and
-all of them for `atb`. The lean timer mill and the containers that are not built on a pool
-(vector, ring, hash table, flat set and map...) have none.
+all of them for `atb`. The lean timer mill, the lean timer ring and the containers that are not
+built on a pool (vector, ring, hash table, flat set and map...) have none.
 
 ## Range bound  singly linked (forward) lists
 
@@ -792,7 +802,7 @@ The policy that says what "nothing" is, is `nothing<T>`, which you specialise fo
 types. Constructing a `contingent` from the sentinel itself gives an empty one. For
 floating point numbers, NaN is kept as its bits and recognised by them, so that it works
 with `-ffast-math` too (but do not compute with NaNs then, they are not _numbers_ any more).
-`nulifier<T, nothing_is<-1>>` makes a `NULIFY` for `cobtmrleanmill` out of a policy.
+`nulifier<T, nothing_is<-1>>` makes a `NULIFY` for `cobtmrleanmill` or `cobtmrleanring` out of a policy.
 
 ## Shared and unique pointers that are safe when null
 
@@ -858,7 +868,8 @@ code as their `cob` namesakes, so the interface is the same, except that:
   time, so it can't be made from what is to be called: `assign()` it.
 
 The timers have them as well: `atbtmrlist<ID, Tag, U>`, `atbtmrwheel<ID, Tag, U, SPOKES>`,
-`atbtmrmill<ID, Tag, U, LVL, DIM, EXACT>` and `atbtmrleanmill<ID, Tag, U, NULIFY, LVL, DIM>`. The
+`atbtmrmill<ID, Tag, U, LVL, DIM, EXACT>`, `atbtmrleanmill<ID, Tag, U, NULIFY, LVL, DIM>` and
+`atbtmrleanring<ID, Tag, U, NULIFY>`. The
 dimension of the tag is the number of timers, what `N` is for the `cob` ones; the numbers of
 spokes and levels are still given at compile time. Each spoke gets its share of the timers the
 same way: twice `N / SPOKES` for the wheel, `N / (LVL * DIM) + 1` for the mills - and none, if there
@@ -883,7 +894,7 @@ with. `cobbound<N>` (in `cobbound.hpp`) is the bound known at compile time: indi
 bound integers and the storage is in the object. `atbbound<Tag>` (in `atbbound.hpp`) is the
 bound set at run time. So, `coblist<T, N>` is `bndlist<T, cobbound<N>>` and `atblist<T, Tag>` is
 `bndlist<T, atbbound<Tag>>`. The timers are done the same way (`bndtmrlist`, `bndtmrwheel`,
-`bndtmrmill`, `bndtmrexactmill`, `bndtmrleanmill`). You should not need the `bnd` names, but you will see them in
+`bndtmrmill`, `bndtmrexactmill`, `bndtmrleanmill`, `bndtmrleanring`). You should not need the `bnd` names, but you will see them in
 compiler messages. The arrays are `bndarray<T, B>`, in `bndarray.hpp`.
 
 ## Pools, ring buffers, bitsets and hash tables
@@ -1169,8 +1180,10 @@ std::cout << s << '\n';           // or anything that takes a std::string_view
 ## Timers
 
 There are several timer "modules" available. Their interface is almost
-the same, all support starting, stopping by ID, stopping by index
-(which you get on starting) and processing the expired ones.
+the same, all support starting, stopping by ID and processing the
+expired ones; most also support stopping by index (which you get on
+starting). The lean ring has no index, as inserting moves timers
+around (see [timers.md](timers.md)).
 
 How to choose which one to use:
 
@@ -1186,7 +1199,14 @@ How to choose which one to use:
    distinguish a cancelled timer, use the lean mill. If you want the
    mill, but can't have the loss of precision, use the exact mill
    (see below).
-4. Otherwise, use a "high precision" timer list, which is simply an
+4. If memory is tight and timers mostly expire (are rarely cancelled),
+   use the lean ring. It keeps the timers sorted by expiry in a ring
+   with no links, no pool and no per-timer bookkeeping, so it has the
+   smallest footprint of them all. There is no stop by index;
+   cancelling nullifies a timer in place and a cancelled timer is
+   never reported. Starting is O(N), so it suits modest numbers of
+   timers.
+5. Otherwise, use a "high precision" timer list, which is simply an
    associative container where each element holds the time at which
    timer should expire. This is currently not implemented, because
    it's pretty simple to do, just use the skip list as the container.

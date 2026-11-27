@@ -25,7 +25,7 @@ Each class, or group of classes, has a document of its own:
 | [cobfunction.md](cobfunction.md)   | `cobfunction`, `cobmovefunction`                            |
 | [perhaps.md](perhaps.md)           | `perhaps`, `contingent`                                     |
 | [fullptr.md](fullptr.md)           | `fullptr`, `optptr`, `fullshared`, `optshared`, `fullunique`, `optunique` |
-| [timers.md](timers.md)             | `cobtmrlist`, `cobtmrwheel`, `cobtmrmill`, `cobtmrleanmill` |
+| [timers.md](timers.md)             | `cobtmrlist`, `cobtmrwheel`, `cobtmrmill`, `cobtmrleanmill`, `cobtmrleanring` |
 
 Where a class mimics one of the Standard library, its document only
 says how it differs from that one. Where there is no Standard
